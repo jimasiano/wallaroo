@@ -35,3 +35,9 @@ class RouteIdGenerator
 
   fun ref apply(): RouteId =>
     _guid.u64()
+
+class GenericRequestIdGenerator
+  let _guid: GuidGenerator = GuidGenerator
+
+  fun ref apply(): RouteId =>
+    _guid.u64()
