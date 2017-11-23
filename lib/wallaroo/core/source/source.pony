@@ -98,6 +98,7 @@ interface tag Source is DisposableActor
   be reconnect_boundary(target_worker_name: String)
   be mute(c: Consumer)
   be unmute(c: Consumer)
+  be stop_the_world(upstream_request_id: U64, rr: FinishedAckRequester)
 
 interface tag SourceListener is DisposableActor
   be update_router(router: PartitionRouter)

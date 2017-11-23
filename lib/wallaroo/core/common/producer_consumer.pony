@@ -23,7 +23,13 @@ use "wallaroo/core/initialization"
 use "wallaroo/core/routing"
 use "wallaroo/core/topology"
 
-trait tag Producer is (Muteable & Ackable & AckRequester)
+trait tag FinishedAckRequester
+  be receive_finished_ack(request_id: U64)
+  
+trait tag FinishedAckResponder
+  be request_finished_ack(request_id: U64, producer: FinishedAckRequester)
+
+trait tag Producer is (Muteable & Ackable & AckRequester & FinishedAckRequester)
   fun ref route_to(c: Consumer): (Route | None)
   fun ref next_sequence_id(): SeqId
   fun ref current_sequence_id(): SeqId
@@ -31,7 +37,7 @@ trait tag Producer is (Muteable & Ackable & AckRequester)
 interface tag RouterUpdateable
   be update_router(r: Router)
 
-trait tag Consumer is (Runnable & StateReceiver & AckRequester & Initializable)
+trait tag Consumer is (Runnable & StateReceiver & AckRequester & Initializable & FinishedAckResponder)
   be register_producer(producer: Producer)
   be unregister_producer(producer: Producer)
 
