@@ -116,7 +116,9 @@ class BoundaryRoute is Route
   fun ref request_finished_ack(request_id: U64,
     producer: FinishedAckRequester)
   =>
-    _consumer.request_finished_ack(request_id, producer)
+    @printf[I32]("!@ request_finished_ack BOUNDARY ROUTE\n".cstring())
+    //!@
+    // _consumer.request_finished_ack(request_id, producer)
 
   fun ref receive_finished_ack(request_id: U64) =>
     _step.receive_finished_ack(request_id)

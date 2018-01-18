@@ -141,6 +141,7 @@ class TypedRoute[In: Any val] is Route
   fun ref request_finished_ack(request_id: U64,
     producer: FinishedAckRequester)
   =>
+    @printf[I32]("!@ request_finished_ack TYPED ROUTE\n".cstring())
     _consumer.request_finished_ack(request_id, producer)
 
   fun ref receive_finished_ack(request_id: U64) =>

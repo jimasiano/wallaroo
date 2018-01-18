@@ -268,6 +268,9 @@ class DataChannelConnectNotifier is DataChannelNotify
           c.boundary_id)
       | let m: SpinUpLocalTopologyMsg =>
         @printf[I32]("Received spin up local topology message!\n".cstring())
+      | let m: RequestFinishedAckMsg =>
+        @printf[I32]("Received RequestFinishedAckMsg from %s\n".cstring(),
+          m.sender.cstring())
       | let m: UnknownChannelMsg =>
         @printf[I32]("Unknown Wallaroo data message type: UnknownChannelMsg.\n"
           .cstring())

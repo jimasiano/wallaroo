@@ -287,6 +287,7 @@ actor TCPSink is Consumer
     end
 
   be request_ack() =>
+    @printf[I32]("!@ request_finished_ack TCP SINK\n".cstring())
     _terminus_route.request_ack()
 
   be register_producer(producer: Producer) =>

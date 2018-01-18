@@ -409,6 +409,8 @@ actor Step is (Producer & Consumer)
   be request_finished_ack(upstream_request_id: U64,
     upstream_producer: FinishedAckRequester)
   =>
+    @printf[I32]("!@ request_finished_ack STEP %s\n".cstring(),
+      _id.string().cstring())
     let ack_waiter: FinishedAckWaiter = ack_waiter.create(upstream_request_id,
       upstream_producer)
     for r in _routes.values() do
