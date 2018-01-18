@@ -145,6 +145,7 @@ actor DataReceiver is Producer
   be request_finished_ack(upstream_producer: FinishedAckRequester,
     upstream_request_id: U64)
   =>
+    @printf[I32]("!@ request_finished_ack DATA RECEIVER\n".cstring())
     //TODO: receive from upstream over network
     let ack_waiter: FinishedAckWaiter = ack_waiter.create(upstream_request_id,
       upstream_producer)
@@ -158,7 +159,7 @@ actor DataReceiver is Producer
       ack_waiter.unmark_consumer_request(request_id)
       if ack_waiter.should_send_upstream() then
         let ack_msg = ChannelMsgEncoder.finished_ack(
-          ack_waiter.upstream_request_id, _auth)?
+          _worker_name, ack_waiter.upstream_request_id, _auth)?
         _write_on_conn(ack_msg)
       end
     else

@@ -597,6 +597,7 @@ actor RouterRegistry is FinishedAckRequester
     """
     Begin partition migration
     """
+    @printf[I32]("!@ Beginning migration\n".cstring())
     if _partition_routers.size() == 0 then
       //no steps have been migrated
       @printf[I32](("Resuming message processing immediately. No partitions " +
@@ -732,16 +733,24 @@ actor RouterRegistry is FinishedAckRequester
     //TODO: request finished acks on remote workers
     ifdef debug then
       @printf[I32](("RouterRegistry requesting finished acks for local " +
-        " sources.\n").cstring())
+        "sources.\n").cstring())
     end
+    _finished_ack_waiter.set_custom_action(custom_action)
+    @printf[I32]("!@ Stopping world on %s sources\n".cstring(),
+      _sources.size().string().cstring())
     for source in _sources.values() do
+      @printf[I32]("!@ -- Stopping world for source %s\n".cstring(),
+        (digestof source).string().cstring())
       let request_id = _finished_ack_waiter.add_consumer_request()
       source.stop_the_world(request_id, this)
     end
 
   be receive_finished_ack(request_id: U64) =>
+    @printf[I32]("!@ receive_finished_ack REGISTRY for %s\n".cstring(),
+      request_id.string().cstring())
     _finished_ack_waiter.unmark_consumer_request(request_id)
     if _finished_ack_waiter.should_send_upstream() then
+      @printf[I32]("!@ Running custom action\n".cstring())
       _finished_ack_waiter.run_custom_action()
     end
 
@@ -1098,6 +1107,7 @@ class MigrationAction is CustomAction
     _target_workers = target_workers
 
   fun ref apply() =>
+    @printf[I32]("!@ Running MigrationAction\n".cstring())
     _registry.begin_migration(_target_workers)
 
 class LeavingMigrationAction is CustomAction

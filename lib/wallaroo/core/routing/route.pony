@@ -115,6 +115,7 @@ class EmptyRoute is Route
   fun ref request_finished_ack(request_id: U64,
     producer: FinishedAckRequester)
   =>
+    @printf[I32]("!@ request_finished_ack EMPTY ROUTE\n".cstring())
     producer.receive_finished_ack(request_id)
 
   fun ref receive_finished_ack(request_id: U64) =>
