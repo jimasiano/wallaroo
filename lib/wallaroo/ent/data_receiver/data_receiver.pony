@@ -142,7 +142,9 @@ actor DataReceiver is Producer
     """This is not a real Producer, so it doesn't write any State"""
     None
 
-  be request_finished_ack(upstream_producer: FinishedAckRequester, upstream_request_id: U64) =>
+  be request_finished_ack(upstream_producer: FinishedAckRequester,
+    upstream_request_id: U64)
+  =>
     //TODO: receive from upstream over network
     let ack_waiter: FinishedAckWaiter = ack_waiter.create(upstream_request_id,
       upstream_producer)

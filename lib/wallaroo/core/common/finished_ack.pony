@@ -19,17 +19,19 @@ Copyright 2017 The Wallaroo Authors.
 use "collections"
 use "wallaroo_labs/mort"
 
-interface CustomAction
+trait CustomAction
   fun ref apply()
 
 class FinishedAckWaiter
   let upstream_request_id: U64
   let _upstream_producer: FinishedAckRequester
   let _idgen: GenericRequestIdGenerator = _idgen.create()
-  var _awaiting_finished_ack_from: Array[U64] = _awaiting_finished_ack_from.create()
+  var _awaiting_finished_ack_from: SetIs[U64] =
+    _awaiting_finished_ack_from.create()
   var _custom_action: (CustomAction ref | None) = None
 
-  new create(upstream_request_id': U64, upstream_producer: FinishedAckRequester)
+  new create(upstream_request_id': U64,
+    upstream_producer: FinishedAckRequester)
   =>
     upstream_request_id = upstream_request_id'
     _upstream_producer = upstream_producer
@@ -44,16 +46,11 @@ class FinishedAckWaiter
 
   fun ref add_consumer_request(): U64 =>
     let request_id: U64 = _idgen()
-    _awaiting_finished_ack_from.push(request_id)
+    _awaiting_finished_ack_from.set(request_id)
     request_id
 
   fun ref unmark_consumer_request(request_id: U64) =>
-    try
-      let idx =  _awaiting_finished_ack_from.find(request_id)?
-      _awaiting_finished_ack_from.delete(idx)?
-    else
-      Fail()
-    end
+    _awaiting_finished_ack_from.unset(request_id)
 
   fun should_send_upstream(): Bool =>
     _awaiting_finished_ack_from.size() == 0
