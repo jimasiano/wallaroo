@@ -265,8 +265,9 @@ actor Connections is Cluster
   be stop_the_world(upstream_request_id: U64, requester: FinishedAckRequester,
     exclusions: Array[String] val = recover Array[String] end)
   =>
+    var sent_stop_the_world_msg = false
     try
-    //TODO: send finished ack request
+      //TODO: send finished ack request
       let mute_request_msg =
         ChannelMsgEncoder.mute_request(_worker_name, _auth)?
       for (target, ch) in _control_conns.pairs() do
@@ -276,10 +277,14 @@ actor Connections is Cluster
             {(a: String, b: String): Bool => a == b}))
         then
           ch.writev(mute_request_msg)
+          sent_stop_the_world_msg = true
         end
       end
-   else
+    else
       Fail()
+    end
+    if not sent_stop_the_world_msg then
+      requester.receive_finished_ack(upstream_request_id)
     end
 
   be request_cluster_unmute() =>
