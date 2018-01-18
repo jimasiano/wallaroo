@@ -282,6 +282,8 @@ actor TCPSource is Producer
     _seq_id
 
   be stop_the_world(upstream_request_id: U64, rr: FinishedAckRequester) =>
+    @printf[I32]("!@ Source stopping world (%s)\n".cstring(),
+      (digestof this).string().cstring())
     _finished_ack_waiter = FinishedAckWaiter(upstream_request_id, rr)
     match _finished_ack_waiter
     | let ack_waiter: FinishedAckWaiter =>
