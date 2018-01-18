@@ -845,10 +845,6 @@ actor RouterRegistry is FinishedAckRequester
     end
     _stop_the_world_in_process = true
     _stop_the_world_for_shrink()
-    let timers = Timers
-    let timer = Timer(PauseBeforeShrinkNotify(_auth, _connections,
-      remaining_workers, leaving_workers), _stop_the_world_pause)
-    timers(consume timer)
     try
       let msg = ChannelMsgEncoder.prepare_shrink(remaining_workers,
         leaving_workers, _auth)?
@@ -859,6 +855,8 @@ actor RouterRegistry is FinishedAckRequester
       Fail()
     end
     _prepare_shrink(remaining_workers, leaving_workers)
+    _request_finished_acks(LeavingMigrationAction(_auth, remaining_workers,
+      leaving_workers, _connections))
 
   be prepare_shrink(remaining_workers: Array[String] val,
     leaving_workers: Array[String] val)
@@ -1099,23 +1097,22 @@ class MigrationAction is CustomAction
 
   fun ref apply() =>
     _registry.begin_migration(_target_workers)
-    false
 
-class PauseBeforeShrinkNotify is TimerNotify
+class LeavingMigrationAction is CustomAction
   let _auth: AmbientAuth
-  let _connections: Connections
   let _remaining_workers: Array[String] val
   let _leaving_workers: Array[String] val
+  let _connections: Connections
 
-  new iso create(auth: AmbientAuth, connections: Connections,
-    remaining_workers: Array[String] val, leaving_workers: Array[String] val)
+  new iso create(auth: AmbientAuth, remaining_workers: Array[String] val,
+    leaving_workers: Array[String] val, connections: Connections)
   =>
     _auth = auth
-    _connections = connections
     _remaining_workers = remaining_workers
     _leaving_workers = leaving_workers
+    _connections = connections
 
-  fun ref apply(timer: Timer, count: U64): Bool =>
+  fun ref apply() =>
     try
       let msg = ChannelMsgEncoder.begin_leaving_migration(_remaining_workers,
         _leaving_workers, _auth)?
@@ -1125,7 +1122,6 @@ class PauseBeforeShrinkNotify is TimerNotify
     else
       Fail()
     end
-    false
 
 class LogRotationAction is CustomAction
   let _registry: RouterRegistry
@@ -1135,7 +1131,6 @@ class LogRotationAction is CustomAction
 
   fun ref apply() =>
     _registry.begin_log_rotation()
-    false
 
 // TODO: Replace using this with the badly named SetIs once we address a bug
 // in SetIs where unsetting doesn't reduce set size for type SetIs[String].
