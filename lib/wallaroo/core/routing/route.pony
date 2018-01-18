@@ -112,7 +112,9 @@ class EmptyRoute is Route
     Fail()
     true
 
-  fun ref request_finished_ack(request_id: U64, producer: FinishedAckRequester) =>
+  fun ref request_finished_ack(request_id: U64,
+    producer: FinishedAckRequester)
+  =>
     producer.receive_finished_ack(request_id)
 
   fun ref receive_finished_ack(request_id: U64) =>

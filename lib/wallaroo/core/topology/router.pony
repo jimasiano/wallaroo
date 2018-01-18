@@ -1269,7 +1269,7 @@ class val LocalPartitionRouter[In: Any val,
     else
       false
     end
- 
+
   fun request_finished_ack(request_id: U64, producer: FinishedAckRequester) =>
     for step in _local_map.values() do
       //TODO: this needs to have a producer belonging to the router
@@ -1626,7 +1626,7 @@ class val LocalStatelessPartitionRouter is StatelessPartitionRouter
     else
       false
     end
- 
+
   fun request_finished_ack(request_id: U64, producer: FinishedAckRequester) =>
     for rs in _partition_routes.values() do
       //TODO: use AckWaiter and new ids, with dummy producer
