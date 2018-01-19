@@ -529,8 +529,7 @@ actor RouterRegistry is FinishedAckRequester
     @printf[I32]("~~~Stopping message processing for log rotation.~~~\n"
       .cstring())
     _mute_request(_worker_name)
-    let request_id = _finished_ack_waiter.add_consumer_request()
-    _connections.stop_the_world(request_id, this)
+    _connections.stop_the_world()
 
   //////////////
   // NEW WORKER PARTITION MIGRATION
@@ -579,8 +578,7 @@ actor RouterRegistry is FinishedAckRequester
       _migration_target_ack_list.set(w)
     end
     _mute_request(_worker_name)
-    let request_id = _finished_ack_waiter.add_consumer_request()
-    _connections.stop_the_world(request_id, this, new_workers)
+    _connections.stop_the_world(new_workers)
 
   be resume_the_world() =>
     _resume_the_world()
@@ -743,10 +741,16 @@ actor RouterRegistry is FinishedAckRequester
       _unmute_request(_worker_name)
     end
 
-  fun ref _request_finished_acks(custom_action: CustomAction) =>
+  fun ref _request_finished_acks(custom_action: CustomAction,
+    excluded_workers: Array[String] val = recover Array[String] end)
+  =>
     """
     Get finished acks from all sources
     """
+    let connections_request_id = _finished_ack_waiter.add_consumer_request()
+    _connections.request_finished_acks(connections_request_id, this,
+      excluded_workers)
+
     //TODO: request finished acks on remote workers
     ifdef debug then
       @printf[I32](("RouterRegistry requesting finished acks for local " +
@@ -954,8 +958,7 @@ actor RouterRegistry is FinishedAckRequester
     @printf[I32]("~~~Stopping message processing for leaving workers.~~~\n"
       .cstring())
     _mute_request(_worker_name)
-    let request_id = _finished_ack_waiter.add_consumer_request()
-    _connections.stop_the_world(request_id, this)
+    _connections.stop_the_world()
 
   be disconnect_from_leaving_worker(worker: String) =>
     _connections.disconnect_from(worker)
