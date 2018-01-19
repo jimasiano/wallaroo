@@ -87,7 +87,10 @@ actor RouterRegistry is FinishedAckRequester
   //////
   // Partition Migration
   //////
+
+  //!@
   var _stop_the_world_in_process: Bool = false
+
   var _leaving_in_process: Bool = false
   var _joining_worker_count: USize = 0
   let _initialized_joining_workers: _StringSet =
@@ -506,7 +509,15 @@ actor RouterRegistry is FinishedAckRequester
     _stop_the_world_in_process = true
     _stop_all_local()
     _stop_the_world_for_log_rotation()
-    _request_finished_acks(LogRotationAction(this))
+
+    //!@
+    let timers = Timers
+    let timer = Timer(PauseBeforeLogRotationNotify(this),
+    _stop_the_world_pause)
+    timers(consume timer)
+
+    //!@
+    // _request_finished_acks(LogRotationAction(this))
 
   be begin_log_rotation() =>
     """
@@ -1231,6 +1242,17 @@ class LogRotationAction is CustomAction
 
   fun ref apply() =>
     _registry.begin_log_rotation()
+
+//!@
+class PauseBeforeLogRotationNotify is TimerNotify
+   let _registry: RouterRegistry
+
+   new iso create(registry: RouterRegistry) =>
+     _registry = registry
+
+  fun ref apply(timer: Timer, count: U64): Bool =>
+    _registry.begin_log_rotation()
+    false
 
 // TODO: Replace using this with the badly named SetIs once we address a bug
 // in SetIs where unsetting doesn't reduce set size for type SetIs[String].
