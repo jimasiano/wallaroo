@@ -145,7 +145,6 @@ actor DataReceiver is Producer
   be request_finished_ack(upstream_request_id: RequestId)
   =>
     @printf[I32]("!@ request_finished_ack DATA RECEIVER\n".cstring())
-    //TODO: receive from upstream over network
     let ack_waiter: FinishedAckWaiter = ack_waiter.create(upstream_request_id)
     let request_id = ack_waiter.add_consumer_request()
     _router.request_finished_ack(request_id, this)

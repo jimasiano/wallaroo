@@ -41,8 +41,11 @@ trait tag Cluster
     id: U128, key: K, state_name: String, exclusions: Array[String] val =
     recover Array[String] end)
 
-  be stop_the_world(upstream_request_id: RequestId, requester: FinishedAckRequester,
-    exclusions: Array[String] val)
+  be stop_the_world(exclusions: Array[String] val) =>
+    None
+
+  be request_finished_acks(upstream_request_id: RequestId,
+    requester: FinishedAckRequester, exclusions: Array[String] val)
   =>
     None
 

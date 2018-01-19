@@ -284,9 +284,6 @@ trait val OmniRouter is Equatable[OmniRouter]
 
   fun blueprint(): OmniRouterBlueprint
 
-  fun request_finished_ack_with_target_id(target_id: U128, request_id: RequestId,
-    producer: Producer ref)
-
 class val EmptyOmniRouter is OmniRouter
   fun route_with_target_ids[D: Any val](target_ids: Array[StepId] val,
     metric_name: String, pipeline_time_spent: U64, data: D,
@@ -334,11 +331,6 @@ class val EmptyOmniRouter is OmniRouter
 
   fun blueprint(): OmniRouterBlueprint =>
     EmptyOmniRouterBlueprint
-
-  fun request_finished_ack_with_target_id(target_id: U128, request_id: RequestId,
-    producer: Producer)
-  =>
-    producer.receive_finished_ack(request_id)
 
 class val StepIdRouter is OmniRouter
   let _worker_name: String
@@ -623,80 +615,6 @@ class val StepIdRouter is OmniRouter
           o._stateless_partitions)
     else
       false
-    end
-
-  fun request_finished_ack_with_target_id(target_id: U128, request_id: RequestId,
-    producer: Producer ref)
-  =>
-    //TODO: send request to target step
-    if _data_routes.contains(target_id) then
-      try
-        let target = _data_routes(target_id)?
-
-        let might_be_route = producer.route_to(target)
-        match might_be_route
-        | let r: Route =>
-          ifdef "trace" then
-            @printf[I32]("OmniRouter found Route to Step\n".cstring())
-          end
-          r.request_finished_ack(request_id, producer)
-        else
-          Fail()
-        end
-      else
-        Unreachable()
-      end
-    else
-      // This target_id step exists on another worker
-      if _step_map.contains(target_id) then
-        try
-          match _step_map(target_id)?
-          | let pa: ProxyAddress =>
-            try
-              // Try as though we have a reference to the right boundary
-              let boundary = _outgoing_boundaries(pa.worker)?
-              let might_be_route = producer.route_to(boundary)
-              match might_be_route
-              | let r: Route =>
-                ifdef "trace" then
-                  @printf[I32]("OmniRouter found Route to OutgoingBoundary\n"
-                    .cstring())
-                end
-                r.request_finished_ack(request_id, producer)
-              else
-                // We don't have a route to this boundary
-                ifdef debug then
-                  @printf[I32]("OmniRouter had no Route\n".cstring())
-                end
-                Fail()
-              end
-            else
-              // We don't have a reference to the right outgoing boundary
-              ifdef debug then
-                @printf[I32](("OmniRouter has no reference to " +
-                  " OutgoingBoundary\n").cstring())
-              end
-              Fail()
-            end
-          | let sink_id: StepId =>
-            producer.receive_finished_ack(request_id)
-          end
-        else
-          Fail()
-        end
-      else
-        try
-          _stateless_partitions(target_id)?.request_finished_ack(request_id,
-            producer)
-        else
-          // Apparently this target_id does not refer to a valid step id
-          ifdef debug then
-            @printf[I32](("OmniRouter: target id does not refer to valid " +
-              " step id\n").cstring())
-          end
-          Fail()
-        end
-      end
     end
 
 trait val OmniRouterBlueprint
@@ -986,24 +904,6 @@ class val LocalPartitionRouter[In: Any val,
 
   fun route_builder(): RouteBuilder =>
     TypedRouteBuilder[StateProcessor[S]]
-
-  // fun migrate_step[K: (Hashable val & Equatable[K] val)](
-  //   boundary: OutgoingBoundary, k: K)
-  // =>
-  //   match k
-  //   | let key: Key =>
-  //     try
-  //       match _partition_routes(key)?
-  //       | let s: Step => s.send_state[Key](boundary, _state_name, key)
-  //       else
-  //         Fail()
-  //       end
-  //     else
-  //       Fail()
-  //     end
-  //   else
-  //     Fail()
-  //   end
 
   fun route[D: Any val](metric_name: String, pipeline_time_spent: U64, data: D,
     producer: Producer ref, i_msg_uid: MsgId, frac_ids: FractionalMessageId,
@@ -1708,7 +1608,9 @@ class val LocalStatelessPartitionRouter is StatelessPartitionRouter
       false
     end
 
-  fun request_finished_ack(request_id: RequestId, producer: FinishedAckRequester) =>
+  fun request_finished_ack(request_id: RequestId,
+    producer: FinishedAckRequester)
+  =>
     @printf[I32]("request_finished_ack StatelessPartitionRouter\n".cstring())
     for rs in _partition_routes.values() do
       //TODO: use AckWaiter and new ids, with dummy producer

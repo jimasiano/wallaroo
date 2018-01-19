@@ -262,15 +262,30 @@ actor Connections is Cluster
       Fail()
     end
 
-  be stop_the_world(upstream_request_id: RequestId,
+  be stop_the_world(exclusions: Array[String] val = recover Array[String] end)
+  =>
+    try
+      let mute_request_msg =
+        ChannelMsgEncoder.mute_request(_worker_name, _auth)?
+      for (target, ch) in _control_conns.pairs() do
+        if
+          (target != _worker_name) and
+          (not exclusions.contains(target,
+            {(a: String, b: String): Bool => a == b}))
+        then
+          ch.writev(mute_request_msg)
+        end
+      end
+    else
+      Fail()
+    end
+
+  be request_finished_acks(upstream_request_id: RequestId,
     requester: FinishedAckRequester,
     exclusions: Array[String] val = recover Array[String] end)
   =>
-    var sent_stop_the_world_msg = false
+    var sent_request_msg = false
     try
-      //TODO: send finished ack request
-      let mute_request_msg =
-        ChannelMsgEncoder.mute_request(_worker_name, _auth)?
       let finished_ack_request_msg =
         ChannelMsgEncoder.request_finished_ack(_worker_name,
           upstream_request_id, _auth)?
@@ -280,17 +295,17 @@ actor Connections is Cluster
           (not exclusions.contains(target,
             {(a: String, b: String): Bool => a == b}))
         then
-          ch.writev(mute_request_msg)
           ch.writev(finished_ack_request_msg)
-          sent_stop_the_world_msg = true
+          sent_request_msg = true
         end
       end
     else
       Fail()
     end
-    if not sent_stop_the_world_msg then
+    if not sent_request_msg then
       requester.receive_finished_ack(upstream_request_id)
     end
+
 
   be request_cluster_unmute() =>
     try
