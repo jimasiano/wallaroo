@@ -300,7 +300,8 @@ actor TCPSink is Consumer
 
     _upstreams.unset(producer)
 
-  be request_finished_ack(request_id: U64, producer: FinishedAckRequester) =>
+  be request_finished_ack(request_id: RequestId, producer: FinishedAckRequester) =>
+    @printf[I32]("!@ request_finished_ack TCPSink\n".cstring())
     producer.receive_finished_ack(request_id)
 
   //

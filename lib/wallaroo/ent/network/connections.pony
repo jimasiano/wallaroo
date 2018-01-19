@@ -262,7 +262,7 @@ actor Connections is Cluster
       Fail()
     end
 
-  be stop_the_world(upstream_request_id: U64, requester: FinishedAckRequester,
+  be stop_the_world(upstream_request_id: RequestId, requester: FinishedAckRequester,
     exclusions: Array[String] val = recover Array[String] end)
   =>
     var sent_stop_the_world_msg = false

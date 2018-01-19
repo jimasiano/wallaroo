@@ -47,7 +47,7 @@ actor RouterRegistry is FinishedAckRequester
   var _application_ready_to_work: Bool = false
 
   let _finished_ack_waiter: FinishedAckWaiter =
-    _finished_ack_waiter.create(0, this)
+    _finished_ack_waiter.create(0)
 
   ////////////////
   // Subscribers
@@ -742,10 +742,10 @@ actor RouterRegistry is FinishedAckRequester
       @printf[I32]("!@ -- Stopping world for source %s\n".cstring(),
         (digestof source).string().cstring())
       let request_id = _finished_ack_waiter.add_consumer_request()
-      source.stop_the_world(request_id, this)
+      source.request_finished_ack(request_id, this)
     end
 
-  be receive_finished_ack(request_id: U64) =>
+  be receive_finished_ack(request_id: RequestId) =>
     @printf[I32]("!@ receive_finished_ack REGISTRY for %s\n".cstring(),
       request_id.string().cstring())
     _finished_ack_waiter.unmark_consumer_request(request_id)

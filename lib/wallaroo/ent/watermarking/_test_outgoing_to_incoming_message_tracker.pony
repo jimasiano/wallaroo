@@ -415,5 +415,5 @@ actor _TestProducer is Producer
   be request_ack() =>
     None
 
-  be receive_finished_ack(request_id: U64) =>
+  be receive_finished_ack(request_id: RequestId) =>
     None
