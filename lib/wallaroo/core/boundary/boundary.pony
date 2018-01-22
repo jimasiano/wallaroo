@@ -103,7 +103,7 @@ actor OutgoingBoundary is Consumer
   // Consumer
   var _upstreams: SetIs[Producer] = _upstreams.create()
   var _mute_outstanding: Bool = false
-  var _finished_ack_waiters: Map[U64, FinishedAckWaiter] = _finished_ack_waiters.create()
+  var _finished_ack_waiter: FinishedAckWaiter = FinishedAckWaiter
 
   // TCP
   var _notify: WallarooOutgoingNetworkActorNotify
@@ -446,27 +446,21 @@ actor OutgoingBoundary is Consumer
     _upstreams.unset(producer)
 
   be request_finished_ack(upstream_request_id: RequestId,
-    upstream_producer: FinishedAckRequester)
+    requester_id: StepId, upstream_requester: FinishedAckRequester)
   =>
     @printf[I32]("!@ request_finished_ack BOUNDARY\n".cstring())
     try
-      let ack_waiter: FinishedAckWaiter =
-        ack_waiter.create(upstream_request_id, upstream_producer)
-      let request_id = ack_waiter.add_consumer_request()
+      _finished_ack_waiter.add_new_request(requester_id, upstream_request_id,
+        upstream_requester)
+      let request_id = _finished_ack_waiter.add_consumer_request(requester_id)
       _writev(ChannelMsgEncoder.request_finished_ack(_worker_name, request_id,
-        _auth)?)
-      _finished_ack_waiters(request_id) = ack_waiter
+        requester_id, _auth)?)
     else
       Fail()
     end
 
   be receive_finished_ack(request_id: RequestId) =>
-    try
-      let ack_waiter = _finished_ack_waiters(request_id)?
-      ack_waiter.unmark_consumer_request_and_send(request_id)
-    else
-      Fail()
-    end
+    _finished_ack_waiter.unmark_consumer_request(request_id)
 
   //
   // TCP

@@ -27,7 +27,8 @@ trait tag FinishedAckRequester
   be receive_finished_ack(request_id: RequestId)
 
 trait tag FinishedAckResponder
-  be request_finished_ack(request_id: RequestId, producer: FinishedAckRequester)
+  be request_finished_ack(request_id: RequestId, requester_id: StepId,
+    producer: FinishedAckRequester)
 
 trait tag Producer is (Muteable & Ackable & AckRequester &
   FinishedAckRequester)

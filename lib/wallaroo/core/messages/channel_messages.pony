@@ -313,10 +313,10 @@ primitive ChannelMsgEncoder
   =>
     _encode(CleanShutdownMsg(msg), auth)?
 
-  fun request_finished_ack(sender: String, request_id: RequestId, auth: AmbientAuth):
-    Array[ByteSeq] val ?
+  fun request_finished_ack(sender: String, request_id: RequestId,
+    requester_id: StepId, auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    _encode(RequestFinishedAckMsg(sender, request_id), auth)?
+    _encode(RequestFinishedAckMsg(sender, request_id, requester_id), auth)?
 
   fun finished_ack(sender: String, request_id: RequestId, auth: AmbientAuth):
     Array[ByteSeq] val ?
@@ -621,7 +621,7 @@ trait val ReplayableDeliveryMsg is DeliveryMsg
     metrics_id: U16, worker_ingress_ts: U64): Bool
   fun input(): Any val
   fun metric_name(): String
-  fun msg_uid(): U128
+  fun msg_uid(): MsgId
 
 class val ForwardMsg[D: Any val] is ReplayableDeliveryMsg
   let _target_id: StepId
@@ -639,7 +639,7 @@ class val ForwardMsg[D: Any val] is ReplayableDeliveryMsg
 
   new val create(t_id: StepId, from: String,
     m_data: D, m_name: String, proxy_address: ProxyAddress,
-    msg_uid': U128, frac_ids': FractionalMessageId)
+    msg_uid': MsgId, frac_ids': FractionalMessageId)
   =>
     _target_id = t_id
     _sender_name = from
@@ -794,14 +794,19 @@ class val FinishedAckMsg is ChannelMsg
   let sender: String
   let request_id: RequestId
 
-  new val create(sender': String, request_id': U64) =>
+  new val create(sender': String, request_id': RequestId) =>
     sender = sender'
     request_id = request_id'
 
 class val RequestFinishedAckMsg is ChannelMsg
   let sender: String
   let request_id: RequestId
+  let requester_id: StepId
 
-  new val create(sender': String, request_id': U64) =>
+  new val create(sender': String, request_id': RequestId,
+    requester_id': StepId)
+  =>
     sender = sender'
     request_id = request_id'
+    requester_id = requester_id'
+

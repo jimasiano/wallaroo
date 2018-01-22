@@ -356,7 +356,7 @@ class ControlChannelConnectNotifier is TCPConnectionNotify
         _router_registry.remote_unmute_request(m.originating_worker)
       | let m: RequestFinishedAckMsg =>
         _router_registry.remote_request_finished_ack(m.sender,
-          m.request_id)
+          m.request_id, m.requester_id)
       | let m: FinishedAckMsg =>
         @printf[I32]("Received FinishedAckMsg from %s\n".cstring(),
           m.sender)

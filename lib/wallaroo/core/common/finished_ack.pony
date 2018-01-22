@@ -17,6 +17,7 @@ Copyright 2017 The Wallaroo Authors.
 */
 
 use "collections"
+use "wallaroo/core/invariant"
 use "wallaroo_labs/mort"
 
 trait CustomAction
@@ -30,54 +31,151 @@ actor InitialFinishedAckRequester is FinishedAckRequester
     ifdef debug then
       @printf[I32](("Received finished ack at InitialFinishedAckRequester. " +
         "This indicates the originator of a chain of finished ack requests " +
-        "has received the final ack.\n").cstring())
+        "has received the final ack. Request id: %s\n").cstring(),
+        request_id.string().cstring())
     end
     None
 
 class FinishedAckWaiter
-  let upstream_request_id: RequestId
-  let _upstream_producer: FinishedAckRequester
-  let _idgen: RequestIdGenerator = _idgen.create()
-  var _awaiting_finished_ack_from: SetIs[RequestId] =
-    _awaiting_finished_ack_from.create()
-  var _custom_action: (CustomAction ref | None) = None
+  let _id_gen: RequestIdGenerator = _id_gen.create()
+  // Map from the requester_id to the request id it sent us
+  let _upstream_request_ids: Map[StepId, RequestId] =
+    _upstream_request_ids.create()
+  // Map from request_ids we generated to the requester_id for the
+  // original upstream request they're related to
+  let _downstream_request_ids: Map[RequestId, StepId] =
+    _downstream_request_ids.create()
+  let _pending_acks: Map[StepId, SetIs[RequestId]] = _pending_acks.create()
+  let _upstream_requesters: Map[StepId, FinishedAckRequester] =
+    _upstream_requesters.create()
+  let _custom_actions: Map[StepId, CustomAction] = _custom_actions.create()
 
-  new create(upstream_request_id': RequestId,
-    upstream_producer: FinishedAckRequester = InitialFinishedAckRequester)
+  fun ref initiate_request(initiator_id: StepId,
+    custom_action: (CustomAction | None) = None)
   =>
-    upstream_request_id = upstream_request_id'
-    _upstream_producer = upstream_producer
-
-  fun ref set_custom_action(custom_action: CustomAction) =>
-    _custom_action = custom_action
-
-  fun ref run_custom_action() =>
-    match _custom_action
-    | let ca: CustomAction => ca()
+    add_new_request(initiator_id, 0, InitialFinishedAckRequester)
+    match custom_action
+    | let ca: CustomAction =>
+      set_custom_action(initiator_id, ca)
     end
 
-  fun ref add_consumer_request(): RequestId =>
-    let request_id: RequestId = _idgen()
-    _awaiting_finished_ack_from.set(request_id)
+  fun ref add_new_request(requester_id: StepId, request_id: RequestId,
+    upstream_requester: FinishedAckRequester = InitialFinishedAckRequester,
+    custom_action: (CustomAction | None) = None)
+  =>
+    // If _upstream_request_ids contains the requester_id, then we're
+    // already processing a request from it.
+    if not _upstream_request_ids.contains(requester_id) then
+      _upstream_request_ids(requester_id) = request_id
+      _upstream_requesters(requester_id) = upstream_requester
+      _pending_acks(requester_id) = SetIs[RequestId]
+      match custom_action
+      | let ca: CustomAction =>
+        set_custom_action(requester_id, ca)
+      end
+    else
+      ifdef debug then
+        @printf[I32]("Already processing a request from %s. Ignoring.\n"
+          .cstring(), requester_id.string().cstring())
+      end
+      //!@
+      upstream_requester.receive_finished_ack(request_id)
+    end
+
+  fun ref set_custom_action(requester_id: StepId, custom_action: CustomAction)
+  =>
+    _custom_actions(requester_id) = custom_action
+
+  fun ref run_custom_action(requester_id: StepId) =>
+    try
+      _custom_actions(requester_id)?()
+    else
+      Fail()
+    end
+
+  fun ref add_consumer_request(requester_id: StepId,
+    supplied_id: (RequestId | None) = None): RequestId
+  =>
+    let request_id =
+      match supplied_id
+      | let r_id: RequestId => r_id
+      else
+        _id_gen()
+      end
+    try
+      _downstream_request_ids(request_id) = requester_id
+      _pending_acks(requester_id)?.set(request_id)
+    else
+      Fail()
+    end
     request_id
 
   fun ref unmark_consumer_request(request_id: RequestId) =>
-    _awaiting_finished_ack_from.unset(request_id)
-
-  fun should_send_upstream(): Bool =>
-    _awaiting_finished_ack_from.size() == 0
-
-  fun ref unmark_consumer_request_and_send(request_id: RequestId) =>
-    @printf[I32]("!@ --awaiting before: %s\n".cstring(),
-      _awaiting_finished_ack_from.size().string().cstring())
-    _awaiting_finished_ack_from.unset(request_id)
-    @printf[I32]("!@ --awaiting after: %s\n".cstring(),
-      _awaiting_finished_ack_from.size().string().cstring())
-    if should_send_upstream() then
-      @printf[I32]("!@ should_send_upstream\n".cstring())
-      _upstream_producer.receive_finished_ack(upstream_request_id)
-    //!@
+    try
+      let requester_id = _downstream_request_ids(request_id)?
+      let id_set = _pending_acks(requester_id)?
+      ifdef debug then
+        Invariant(id_set.contains(request_id))
+      end
+      id_set.unset(request_id)
+      _downstream_request_ids.remove(request_id)?
+      _check_send_run(requester_id)
     else
-      @printf[I32]("!@ not should_send_upstream\n".cstring())
+      Fail()
     end
+
+  fun ref try_finish_request_early(requester_id: StepId) =>
+    _check_send_run(requester_id)
+
+  fun ref _check_send_run(requester_id: StepId) =>
+    try
+      if _pending_acks(requester_id)?.size() == 0 then
+        let upstream_request_id = _upstream_request_ids(requester_id)?
+        _upstream_requesters(requester_id)?
+          .receive_finished_ack(upstream_request_id)
+        if _custom_actions.contains(requester_id) then
+          _custom_actions(requester_id)?()
+          _custom_actions.remove(requester_id)?
+        end
+
+        // Clean up
+        _pending_acks.remove(requester_id)?
+        _upstream_request_ids.remove(requester_id)?
+        _upstream_requesters.remove(requester_id)?
+
+      end
+    else
+      Fail()
+    end
+
+    //!@
+    // @printf[I32]("!@ --awaiting after: %s\n".cstring(),
+    //   _awaiting_finished_ack_from.size().string().cstring())
+    // if should_send_upstream() then
+    //   @printf[I32]("!@ should_send_upstream\n".cstring())
+    //   _upstream_requester.receive_finished_ack(upstream_request_id)
+    // //!@
+    // else
+    //   @printf[I32]("!@ not should_send_upstream\n".cstring())
+    // end
+
+
+    //!@
+  // fun should_send_upstream(): Bool =>
+  //   _awaiting_finished_ack_from.size() == 0
+
+  // fun ref unmark_consumer_request(request_id: RequestId): Bool =>
+  //   @printf[I32]("!@ --awaiting before: %s\n".cstring(),
+  //     _awaiting_finished_ack_from.size().string().cstring())
+  //   _awaiting_finished_ack_from.unset(request_id)
+  //   @printf[I32]("!@ --awaiting after: %s\n".cstring(),
+  //     _awaiting_finished_ack_from.size().string().cstring())
+  //   if should_send_upstream() then
+  //     @printf[I32]("!@ should_send_upstream\n".cstring())
+  //     _upstream_requester.receive_finished_ack(upstream_request_id)
+  //     if _custom_actions.contains(requester_id)
+  //   //!@
+  //   else
+  //     @printf[I32]("!@ not should_send_upstream\n".cstring())
+  //   end
 

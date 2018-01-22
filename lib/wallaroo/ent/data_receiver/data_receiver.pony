@@ -54,8 +54,7 @@ actor DataReceiver is Producer
   var _processing_phase: _DataReceiverProcessingPhase =
     _DataReceiverNotProcessingPhase
 
-  var _finished_ack_waiters: Map[U64, FinishedAckWaiter] =
-    _finished_ack_waiters.create()
+  var _finished_ack_waiter: FinishedAckWaiter = FinishedAckWaiter
 
   new create(auth: AmbientAuth, worker_name: String, sender_name: String,
     initialized: Bool = false)
@@ -142,28 +141,24 @@ actor DataReceiver is Producer
     """This is not a real Producer, so it doesn't write any State"""
     None
 
-  be request_finished_ack(upstream_request_id: RequestId)
+  be request_finished_ack(upstream_request_id: RequestId, requester_id: StepId)
   =>
     @printf[I32]("!@ request_finished_ack DATA RECEIVER\n".cstring())
-    let ack_waiter: FinishedAckWaiter = ack_waiter.create(upstream_request_id)
-    let request_id = ack_waiter.add_consumer_request()
-    _router.request_finished_ack(request_id, this)
-    _finished_ack_waiters(request_id) = ack_waiter
+    _finished_ack_waiter.add_new_request(requester_id, upstream_request_id
+      where custom_action = _WriteFinishedAck(this, upstream_request_id))
+    let request_id = _finished_ack_waiter.add_consumer_request(requester_id)
+    _router.request_finished_ack(request_id, requester_id, this)
 
   be receive_finished_ack(request_id: RequestId) =>
     @printf[I32]("!@ receive_finished_ack DataReceiver\n".cstring())
+    _finished_ack_waiter.unmark_consumer_request(request_id)
+
+  be write_finished_ack(upstream_request_id: RequestId) =>
+    @printf[I32]("!@ !! DataReceiver: write_finished_ack\n".cstring())
     try
-      let ack_waiter = _finished_ack_waiters(request_id)?
-      ack_waiter.unmark_consumer_request(request_id)
-      if ack_waiter.should_send_upstream() then
-        @printf[I32]("!@ should_send_upstream DataReceiver\n".cstring())
-        let ack_msg = ChannelMsgEncoder.finished_ack(
-          _worker_name, ack_waiter.upstream_request_id, _auth)?
-        _write_on_conn(ack_msg)
-      //!@
-      else
-        @printf[I32]("!@ not should_send_upstream DataReceiver\n".cstring())
-      end
+      let ack_msg = ChannelMsgEncoder.finished_ack(_worker_name,
+        upstream_request_id, _auth)?
+      _write_on_conn(ack_msg)
     else
       Fail()
     end
@@ -341,3 +336,14 @@ class _RequestAck is TimerNotify
   fun ref apply(timer: Timer, count: U64): Bool =>
     _d.request_ack()
     true
+
+class _WriteFinishedAck is CustomAction
+  let _data_receiver: DataReceiver
+  let _request_id: RequestId
+
+  new iso create(data_receiver: DataReceiver, request_id: RequestId) =>
+    _data_receiver = data_receiver
+    _request_id = request_id
+
+  fun ref apply() =>
+    _data_receiver.write_finished_ack(_request_id)
