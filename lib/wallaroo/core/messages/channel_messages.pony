@@ -113,7 +113,7 @@ primitive ChannelMsgEncoder
   =>
     _encode(UnmuteRequestMsg(originating_worker), auth)?
 
-  fun delivery[D: Any val](target_id: U128,
+  fun delivery[D: Any val](target_id: StepId,
     from_worker_name: String, msg_data: D,
     metric_name: String, auth: AmbientAuth,
     proxy_address: ProxyAddress, msg_uid: MsgId,
@@ -291,10 +291,10 @@ primitive ChannelMsgEncoder
   =>
     _encode(CleanShutdownMsg(msg), auth)?
 
-  fun request_finished_ack(sender: String, request_id: RequestId, auth: AmbientAuth):
-    Array[ByteSeq] val ?
+  fun request_finished_ack(sender: String, request_id: RequestId,
+    requester_id: StepId, auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    _encode(RequestFinishedAckMsg(sender, request_id), auth)?
+    _encode(RequestFinishedAckMsg(sender, request_id, requester_id), auth)?
 
   fun finished_ack(sender: String, request_id: RequestId, auth: AmbientAuth):
     Array[ByteSeq] val ?
@@ -577,7 +577,7 @@ class val ReplayMsg is ChannelMsg
 
 
 trait val DeliveryMsg is ChannelMsg
-  fun target_id(): U128
+  fun target_id(): StepId
   fun sender_name(): String
   fun deliver(pipeline_time_spent: U64, target_step: Consumer,
     producer: Producer, seq_id: SeqId, route_id: RouteId, latest_ts: U64,
@@ -589,10 +589,10 @@ trait val ReplayableDeliveryMsg is DeliveryMsg
     metrics_id: U16, worker_ingress_ts: U64): Bool
   fun input(): Any val
   fun metric_name(): String
-  fun msg_uid(): U128
+  fun msg_uid(): MsgId
 
 class val ForwardMsg[D: Any val] is ReplayableDeliveryMsg
-  let _target_id: U128
+  let _target_id: StepId
   let _sender_name: String
   let _data: D
   let _metric_name: String
@@ -605,9 +605,9 @@ class val ForwardMsg[D: Any val] is ReplayableDeliveryMsg
   fun msg_uid(): U128 => _msg_uid
   fun frac_ids(): FractionalMessageId => _frac_ids
 
-  new val create(t_id: U128, from: String,
+  new val create(t_id: StepId, from: String,
     m_data: D, m_name: String, proxy_address: ProxyAddress,
-    msg_uid': U128, frac_ids': FractionalMessageId)
+    msg_uid': MsgId, frac_ids': FractionalMessageId)
   =>
     _target_id = t_id
     _sender_name = from
@@ -617,7 +617,7 @@ class val ForwardMsg[D: Any val] is ReplayableDeliveryMsg
     _msg_uid = msg_uid'
     _frac_ids = frac_ids'
 
-  fun target_id(): U128 => _target_id
+  fun target_id(): StepId => _target_id
   fun sender_name(): String => _sender_name
 
   fun deliver(pipeline_time_spent: U64, target_step: Consumer,
@@ -754,14 +754,19 @@ class val FinishedAckMsg is ChannelMsg
   let sender: String
   let request_id: RequestId
 
-  new val create(sender': String, request_id': U64) =>
+  new val create(sender': String, request_id': RequestId) =>
     sender = sender'
     request_id = request_id'
 
 class val RequestFinishedAckMsg is ChannelMsg
   let sender: String
   let request_id: RequestId
+  let requester_id: StepId
 
-  new val create(sender': String, request_id': U64) =>
+  new val create(sender': String, request_id': RequestId,
+    requester_id': StepId)
+  =>
     sender = sender'
     request_id = request_id'
+    requester_id = requester_id'
+

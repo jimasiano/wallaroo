@@ -31,7 +31,9 @@ actor DummyConsumer is Consumer
   be unregister_producer(producer: Producer) =>
     None
 
-  be request_finished_ack(request_id: RequestId, producer: FinishedAckRequester) =>
+  be request_finished_ack(request_id: RequestId, requester_id: StepId,
+    producer: FinishedAckRequester)
+  =>
     @printf[I32]("!@ request_finished_ack DUMMY\n".cstring())
     producer.receive_finished_ack(request_id)
 
