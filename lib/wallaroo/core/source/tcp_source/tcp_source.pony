@@ -58,6 +58,7 @@ actor TCPSource is (Producer & FinishedAckResponder)
   ## Future work
   * Switch to requesting credits via promise
   """
+  let _source_id: StepId
   let _step_id_gen: StepIdGenerator = StepIdGenerator
   let _routes: MapIs[Consumer, Route] = _routes.create()
   let _route_builder: RouteBuilder
@@ -94,7 +95,7 @@ actor TCPSource is (Producer & FinishedAckResponder)
 
   // Producer (Resilience)
   var _seq_id: SeqId = 1 // 0 is reserved for "not seen yet"
-  var _finished_ack_waiter: (FinishedAckWaiter | None) = None
+  var _finished_ack_waiter: FinishedAckWaiter = FinishedAckWaiter
 
   new _accept(listen: TCPSourceListener, notify: TCPSourceNotify iso,
     routes: Array[Consumer] val, route_builder: RouteBuilder,
@@ -106,6 +107,7 @@ actor TCPSource is (Producer & FinishedAckResponder)
     """
     A new connection accepted on a server.
     """
+    _source_id = _step_id_gen()
     _metrics_reporter = consume metrics_reporter
     _listen = listen
     _notify = consume notify
@@ -276,40 +278,28 @@ actor TCPSource is (Producer & FinishedAckResponder)
     end
 
   fun ref next_sequence_id(): SeqId =>
-    //!@
-    // if _seq_id == 2 then request_finished_ack(10, _router_registry) end
-
     _seq_id = _seq_id + 1
 
   fun ref current_sequence_id(): SeqId =>
     _seq_id
 
-  be request_finished_ack(upstream_request_id: RequestId,
-    upstream_producer: FinishedAckRequester)
+  be request_finished_ack(upstream_request_id: RequestId, requester_id: StepId,
+    requester: FinishedAckRequester)
   =>
     @printf[I32]("!@ Source stopping world (%s)\n".cstring(),
       (digestof this).string().cstring())
-    _finished_ack_waiter = FinishedAckWaiter(upstream_request_id,
-      upstream_producer)
-    match _finished_ack_waiter
-    | let ack_waiter: FinishedAckWaiter =>
-      for route in _routes.values() do
-        @printf[I32]("!@ ---*****---- Add consumer request at Source\n".cstring())
-        let request_id = ack_waiter.add_consumer_request()
-        route.request_finished_ack(request_id, this)
-      end
-    else
-      Fail()
+    _finished_ack_waiter.add_new_request(requester_id, upstream_request_id,
+      requester)
+
+    for route in _routes.values() do
+      @printf[I32]("!@ ---*****---- Add consumer request at Source\n".cstring())
+      let request_id = _finished_ack_waiter.add_consumer_request(requester_id)
+      route.request_finished_ack(request_id, _source_id, this)
     end
 
   be receive_finished_ack(request_id: RequestId) =>
     @printf[I32]("!@ receive_finished_ack RECEIVE TCPSource\n".cstring())
-    match _finished_ack_waiter
-    | let ack_waiter: FinishedAckWaiter =>
-      ack_waiter.unmark_consumer_request_and_send(request_id)
-    else
-      Fail()
-    end
+    _finished_ack_waiter.unmark_consumer_request(request_id)
 
   //
   // TCP
