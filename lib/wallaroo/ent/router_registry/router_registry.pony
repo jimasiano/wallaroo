@@ -30,6 +30,7 @@ use "wallaroo_labs/mort"
 
 
 actor RouterRegistry is FinishedAckRequester
+  let _id: StepId
   let _auth: AmbientAuth
   let _data_receivers: DataReceivers
   let _worker_name: String
@@ -46,8 +47,7 @@ actor RouterRegistry is FinishedAckRequester
 
   var _application_ready_to_work: Bool = false
 
-  let _finished_ack_waiter: FinishedAckWaiter =
-    _finished_ack_waiter.create(0)
+  let _finished_ack_waiter: FinishedAckWaiter = FinishedAckWaiter
 
   ////////////////
   // Subscribers
@@ -122,6 +122,7 @@ actor RouterRegistry is FinishedAckRequester
     _connections = c
     _stop_the_world_pause = stop_the_world_pause
     _connections.register_disposable(this)
+    _id = (digestof this).u128()
 
   fun _worker_count(): USize =>
     _outgoing_boundaries.size() + 1
@@ -720,20 +721,22 @@ actor RouterRegistry is FinishedAckRequester
     end
 
   be remote_request_finished_ack(originating_worker: String,
-    upstream_request_id: RequestId)
+    upstream_request_id: RequestId, upstream_requester_id: StepId)
   =>
-    _finished_ack_waiter.set_custom_action(AckFinishedAction(_auth,
-      _worker_name, originating_worker, upstream_request_id, _connections))
+    _finished_ack_waiter.add_new_request(upstream_requester_id,
+      upstream_request_id where custom_action = AckFinishedAction(_auth,
+        _worker_name, originating_worker, upstream_request_id, _connections))
 
     if _sources.size() > 0 then
       for source in _sources.values() do
         @printf[I32]("!@ -- Stopping world for source %s\n".cstring(),
           (digestof source).string().cstring())
-        let request_id = _finished_ack_waiter.add_consumer_request()
-        source.request_finished_ack(request_id, this)
+        let request_id =
+          _finished_ack_waiter.add_consumer_request(upstream_requester_id)
+        source.request_finished_ack(request_id, _id, this)
       end
     else
-      _finished_ack_waiter.run_custom_action()
+      _finished_ack_waiter.try_finish_request_early(upstream_requester_id)
     end
 
   be process_migrating_target_ack(target: String) =>
@@ -758,33 +761,35 @@ actor RouterRegistry is FinishedAckRequester
     """
     Get finished acks from all sources
     """
-    let connections_request_id = _finished_ack_waiter.add_consumer_request()
-    _connections.request_finished_acks(connections_request_id, this,
-      excluded_workers)
+    _finished_ack_waiter.initiate_request(_id, custom_action)
+    _connections.request_finished_acks(_id, this, excluded_workers)
 
     //TODO: request finished acks on remote workers
     ifdef debug then
       @printf[I32](("RouterRegistry requesting finished acks for local " +
         "sources.\n").cstring())
     end
-    _finished_ack_waiter.set_custom_action(custom_action)
     @printf[I32]("!@ Stopping world on %s sources\n".cstring(),
       _sources.size().string().cstring())
     for source in _sources.values() do
       @printf[I32]("!@ -- Stopping world for source %s\n".cstring(),
         (digestof source).string().cstring())
-      let request_id = _finished_ack_waiter.add_consumer_request()
-      source.request_finished_ack(request_id, this)
+      let request_id = _finished_ack_waiter.add_consumer_request(_id)
+      source.request_finished_ack(request_id, _id, this)
     end
+
+  be add_connection_request_ids(r_ids: Array[RequestId] val) =>
+    for r_id in r_ids.values() do
+      _finished_ack_waiter.add_consumer_request(_id, r_id)
+    end
+
+  be no_connection_requests_sent() =>
+    _finished_ack_waiter.try_finish_request_early(_id)
 
   be receive_finished_ack(request_id: RequestId) =>
     @printf[I32]("!@ receive_finished_ack REGISTRY for %s\n".cstring(),
       request_id.string().cstring())
     _finished_ack_waiter.unmark_consumer_request(request_id)
-    if _finished_ack_waiter.should_send_upstream() then
-      @printf[I32]("!@ Running custom action\n".cstring())
-      _finished_ack_waiter.run_custom_action()
-    end
 
   fun _stop_all_local() =>
     """
