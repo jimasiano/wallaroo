@@ -848,14 +848,18 @@ class val DataRouter is Equatable[DataRouter]
     end
 
   fun request_finished_ack(request_id: RequestId, requester_id: StepId,
-    producer: FinishedAckRequester)
+    requester: FinishedAckRequester)
   =>
     @printf[I32]("!@ request_finished_ack DataRouter\n".cstring())
     ifdef "trace" then
       @printf[I32]("Finished ack requested at DataRouter\n".cstring())
     end
-    for consumer in _data_routes.values() do
-      consumer.request_finished_ack(request_id, requester_id, producer)
+    if _data_routes.size() > 0 then
+      for consumer in _data_routes.values() do
+        consumer.request_finished_ack(request_id, requester_id, requester)
+      end
+    else
+      requester.try_finish_request_early(requester_id)
     end
 
 trait val PartitionRouter is (Router & Equatable[PartitionRouter])
@@ -1268,14 +1272,17 @@ class val LocalPartitionRouter[In: Any val,
     end
 
   fun request_finished_ack(request_id: RequestId, requester_id: StepId,
-    producer: FinishedAckRequester)
+    requester: FinishedAckRequester)
   =>
     @printf[I32]("request_finished_ack LocalPartitionRouter\n".cstring())
-    for step in _local_map.values() do
-      //TODO: this needs to have a producer belonging to the router
-      step.request_finished_ack(request_id, requester_id, producer)
+    if _local_map.size() > 0 then
+      for step in _local_map.values() do
+        //TODO: this needs to have a producer belonging to the router
+        step.request_finished_ack(request_id, requester_id, requester)
+      end
+    else
+      requester.try_finish_request_early(requester_id)
     end
-
 
 trait val PartitionRouterBlueprint
   fun build_router(worker_name: String,
@@ -1623,17 +1630,21 @@ class val LocalStatelessPartitionRouter is StatelessPartitionRouter
     end
 
   fun request_finished_ack(request_id: RequestId, requester_id: StepId,
-    producer: FinishedAckRequester)
+    requester: FinishedAckRequester)
   =>
     @printf[I32]("request_finished_ack StatelessPartitionRouter\n".cstring())
-    for rs in _partition_routes.values() do
-      //TODO: use AckWaiter and new ids, with dummy producer
-      match rs
-      | let r: ProxyRouter => r.request_finished_ack(request_id, requester_id,
-        producer)
-      | let s: Step => s.request_finished_ack(request_id, requester_id,
-        producer)
+    if _partition_routes.size() > 0 then
+      for rs in _partition_routes.values() do
+        //TODO: use AckWaiter and new ids, with dummy producer
+        match rs
+        | let r: ProxyRouter => r.request_finished_ack(request_id,
+          requester_id, requester)
+        | let s: Step => s.request_finished_ack(request_id, requester_id,
+          requester)
+        end
       end
+    else
+      requester.try_finish_request_early(requester_id)
     end
 
 trait val StatelessPartitionRouterBlueprint

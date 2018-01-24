@@ -459,6 +459,9 @@ actor OutgoingBoundary is Consumer
       Fail()
     end
 
+  be try_finish_request_early(requester_id: StepId) =>
+    _finished_ack_waiter.try_finish_request_early(requester_id)
+
   be receive_finished_ack(request_id: RequestId) =>
     _finished_ack_waiter.unmark_consumer_request(request_id)
 

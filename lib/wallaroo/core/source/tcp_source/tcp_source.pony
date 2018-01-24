@@ -291,11 +291,19 @@ actor TCPSource is (Producer & FinishedAckResponder)
     _finished_ack_waiter.add_new_request(requester_id, upstream_request_id,
       requester)
 
-    for route in _routes.values() do
-      @printf[I32]("!@ ---*****---- Add consumer request at Source\n".cstring())
-      let request_id = _finished_ack_waiter.add_consumer_request(requester_id)
-      route.request_finished_ack(request_id, _source_id, this)
+    if _routes.size() > 0 then
+      for route in _routes.values() do
+        @printf[I32]("!@ ---*****---- Add consumer request at Source\n".cstring())
+        let request_id = _finished_ack_waiter.add_consumer_request(
+          requester_id)
+        route.request_finished_ack(request_id, _source_id, this)
+      end
+    else
+      requester.try_finish_request_early(requester_id)
     end
+
+  be try_finish_request_early(requester_id: StepId) =>
+    _finished_ack_waiter.try_finish_request_early(requester_id)
 
   be receive_finished_ack(request_id: RequestId) =>
     @printf[I32]("!@ receive_finished_ack RECEIVE TCPSource\n".cstring())

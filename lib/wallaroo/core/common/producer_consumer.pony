@@ -25,6 +25,7 @@ use "wallaroo/core/topology"
 
 trait tag FinishedAckRequester
   be receive_finished_ack(request_id: RequestId)
+  be try_finish_request_early(requester_id: StepId)
 
 trait tag FinishedAckResponder
   be request_finished_ack(request_id: RequestId, requester_id: StepId,
