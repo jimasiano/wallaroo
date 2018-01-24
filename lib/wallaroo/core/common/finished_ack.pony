@@ -36,6 +36,9 @@ actor InitialFinishedAckRequester is FinishedAckRequester
     end
     None
 
+  be try_finish_request_early(requester_id: StepId) =>
+    None
+
 class FinishedAckWaiter
   let _id_gen: RequestIdGenerator = _id_gen.create()
   // Map from the requester_id to the request id it sent us

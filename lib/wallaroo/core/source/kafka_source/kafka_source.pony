@@ -222,15 +222,23 @@ actor KafkaSource[In: Any val] is (Producer & FinishedAckResponder &
     _seq_id
 
   be request_finished_ack(upstream_request_id: RequestId, requester_id: StepId,
-    upstream_requester: FinishedAckRequester)
+    requester: FinishedAckRequester)
   =>
     _finished_ack_waiter.add_new_request(requester_id, upstream_request_id,
-      upstream_requester)
+      requester)
 
-    for route in _routes.values() do
-      let request_id = _finished_ack_waiter.add_consumer_request(requester_id)
-      route.request_finished_ack(request_id, _source_id, this)
+    if _routes.size() > 0 then
+      for route in _routes.values() do
+        let request_id = _finished_ack_waiter.add_consumer_request(
+          requester_id)
+        route.request_finished_ack(request_id, _source_id, this)
+      end
+    else
+      requester.try_finish_request_early(requester_id)
     end
+
+  be try_finish_request_early(requester_id: StepId) =>
+    _finished_ack_waiter.try_finish_request_early(requester_id)
 
   be receive_finished_ack(request_id: RequestId) =>
     _finished_ack_waiter.unmark_consumer_request(request_id)

@@ -309,7 +309,7 @@ actor Connections is Cluster
     if sent_request_msg then
       router_registry.add_connection_request_ids(consume request_ids)
     else
-      router_registry.no_connection_requests_sent()
+      router_registry.try_finish_request_early(requester_id)
     end
 
   be request_cluster_unmute() =>

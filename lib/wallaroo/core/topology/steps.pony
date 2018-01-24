@@ -412,10 +412,18 @@ actor Step is (Producer & Consumer)
       _id.string().cstring())
     _finished_ack_waiter.add_new_request(requester_id, upstream_request_id,
       requester)
-    for r in _routes.values() do
-      let request_id = _finished_ack_waiter.add_consumer_request(requester_id)
-      r.request_finished_ack(request_id, _id, this)
+    if _routes.size() > 0 then
+      for r in _routes.values() do
+        let request_id = _finished_ack_waiter.add_consumer_request(
+          requester_id)
+        r.request_finished_ack(request_id, _id, this)
+      end
+    else
+      _finished_ack_waiter.try_finish_request_early(requester_id)
     end
+
+  be try_finish_request_early(requester_id: StepId) =>
+    _finished_ack_waiter.try_finish_request_early(requester_id)
 
   be receive_finished_ack(request_id: RequestId) =>
     _finished_ack_waiter.unmark_consumer_request(request_id)

@@ -149,6 +149,9 @@ actor DataReceiver is Producer
     let request_id = _finished_ack_waiter.add_consumer_request(requester_id)
     _router.request_finished_ack(request_id, requester_id, this)
 
+  be try_finish_request_early(requester_id: StepId) =>
+    _finished_ack_waiter.try_finish_request_early(requester_id)
+
   be receive_finished_ack(request_id: RequestId) =>
     @printf[I32]("!@ receive_finished_ack DataReceiver\n".cstring())
     _finished_ack_waiter.unmark_consumer_request(request_id)
