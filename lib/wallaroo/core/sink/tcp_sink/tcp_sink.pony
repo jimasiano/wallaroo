@@ -306,6 +306,9 @@ actor TCPSink is Consumer
     @printf[I32]("!@ request_finished_ack TCPSink\n".cstring())
     producer.receive_finished_ack(request_id)
 
+  be try_finish_request_early(requester_id: StepId) =>
+    None
+
   //
   // TCP
   be _event_notify(event: AsioEventID, flags: U32, arg: U32) =>
