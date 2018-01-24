@@ -820,8 +820,8 @@ actor RouterRegistry is FinishedAckRequester
       _finished_ack_waiter.add_consumer_request(_id, r_id)
     end
 
-  be no_connection_requests_sent() =>
-    _finished_ack_waiter.try_finish_request_early(_id)
+  be try_finish_request_early(requester_id: StepId) =>
+    _finished_ack_waiter.try_finish_request_early(requester_id)
 
   be receive_finished_ack(request_id: RequestId) =>
     @printf[I32]("!@ receive_finished_ack REGISTRY for %s\n".cstring(),
