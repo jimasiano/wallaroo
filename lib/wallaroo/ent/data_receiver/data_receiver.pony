@@ -146,8 +146,7 @@ actor DataReceiver is Producer
     @printf[I32]("!@ request_finished_ack DATA RECEIVER\n".cstring())
     _finished_ack_waiter.add_new_request(requester_id, upstream_request_id
       where custom_action = _WriteFinishedAck(this, upstream_request_id))
-    let request_id = _finished_ack_waiter.add_consumer_request(requester_id)
-    _router.request_finished_ack(request_id, requester_id, this)
+    _router.request_finished_ack(requester_id, this, _finished_ack_waiter)
 
   be try_finish_request_early(requester_id: StepId) =>
     _finished_ack_waiter.try_finish_request_early(requester_id)
