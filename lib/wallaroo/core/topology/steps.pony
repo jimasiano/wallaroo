@@ -53,6 +53,8 @@ actor Step is (Producer & Consumer)
   let _event_log: EventLog
   var _seq_id_generator: StepSeqIdGenerator = StepSeqIdGenerator
 
+  var _step_message_processor: StepMessageProcessor = EmptyStepMessageProcessor
+
   let _routes: MapIs[Consumer, Route] = _routes.create()
   var _upstreams: SetIs[Producer] = _upstreams.create()
 
@@ -95,6 +97,7 @@ actor Step is (Producer & Consumer)
 
     let initial_router = _runner.clone_router_and_set_input_type(router)
     _update_router(initial_router)
+    _step_message_processor = NormalStepMessageProcessor(this)
 
   //
   // Application startup lifecycle event
@@ -250,12 +253,15 @@ actor Step is (Producer & Consumer)
     i_seq_id: SeqId, i_route_id: RouteId,
     latest_ts: U64, metrics_id: U16, worker_ingress_ts: U64)
   =>
-    _run[D](metric_name, pipeline_time_spent, data, i_producer,
-      msg_uid, frac_ids, i_seq_id, i_route_id,
-      latest_ts, metrics_id, worker_ingress_ts)
+    ifdef "trace" then
+      @printf[I32]("Received msg at Step\n".cstring())
+    end
+    _step_message_processor.run[D](metric_name, pipeline_time_spent, data,
+      i_producer, msg_uid, frac_ids, i_seq_id, i_route_id, latest_ts,
+      metrics_id, worker_ingress_ts)
 
-  fun ref _run[D: Any val](metric_name: String, pipeline_time_spent: U64,
-    data: D, i_producer: Producer, msg_uid: MsgId,
+  fun ref process_message[D: Any val](metric_name: String,
+    pipeline_time_spent: U64, data: D, i_producer: Producer, msg_uid: MsgId,
     frac_ids: FractionalMessageId, i_seq_id: SeqId, i_route_id: RouteId,
     latest_ts: U64, metrics_id: U16, worker_ingress_ts: U64)
   =>
@@ -329,7 +335,7 @@ actor Step is (Producer & Consumer)
     if not _is_duplicate(msg_uid, frac_ids) then
       _deduplication_list.push((msg_uid, frac_ids))
 
-      _run[D](metric_name, pipeline_time_spent, data, i_producer,
+      process_message[D](metric_name, pipeline_time_spent, data, i_producer,
         msg_uid, frac_ids, i_seq_id, i_route_id,
         latest_ts, metrics_id, worker_ingress_ts)
     else
