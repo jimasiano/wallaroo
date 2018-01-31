@@ -847,8 +847,8 @@ class val DataRouter is Equatable[DataRouter]
       Fail()
     end
 
-  fun request_finished_ack(request_id: RequestId, requester_id: StepId,
-    requester: FinishedAckRequester)
+  fun request_finished_ack(requester_id: StepId, requester: DataReceiver,
+    finished_ack_waiter: FinishedAckWaiter)
   =>
     @printf[I32]("!@ request_finished_ack DataRouter\n".cstring())
     ifdef "trace" then
@@ -856,6 +856,8 @@ class val DataRouter is Equatable[DataRouter]
     end
     if _data_routes.size() > 0 then
       for consumer in _data_routes.values() do
+        let request_id = finished_ack_waiter.add_consumer_request(
+          requester_id)
         consumer.request_finished_ack(request_id, requester_id, requester)
       end
     else
