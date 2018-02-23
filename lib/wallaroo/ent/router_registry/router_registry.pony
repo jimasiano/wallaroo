@@ -938,7 +938,6 @@ actor RouterRegistry is FinishedAckRequester
     This should only be called on the worker contacted via an external
     message to initiate a shrink.
     """
-
     if ArrayHelpers[String].contains[String](leaving_workers, _worker_name)
     then
       // Since we're one of the leaving workers, we're handing off
@@ -957,17 +956,13 @@ actor RouterRegistry is FinishedAckRequester
       for w in remaining_workers.values() do
         @printf[I32]("-- -- %s\n".cstring(), w.cstring())
       end
+
       @printf[I32]("-- Leaving workers: \n".cstring())
       for w in leaving_workers.values() do
         @printf[I32]("-- -- %s\n".cstring(), w.cstring())
       end
       _stop_the_world_in_process = true
       _stop_the_world_for_shrink()
-      let timers = Timers
-      let timer = Timer(PauseBeforeShrinkNotify(_auth, _worker_name,
-        _connections, remaining_workers, leaving_workers),
-        _stop_the_world_pause)
-      timers(consume timer)
       try
         let msg = ChannelMsgEncoder.prepare_shrink(remaining_workers,
           leaving_workers, _auth)?
@@ -978,6 +973,8 @@ actor RouterRegistry is FinishedAckRequester
         Fail()
       end
       _prepare_shrink(remaining_workers, leaving_workers)
+      _request_finished_acks(LeavingMigrationAction(_auth, remaining_workers,
+        leaving_workers, _connections))
     end
 
   be prepare_shrink(remaining_workers: Array[String] val,
@@ -1222,26 +1219,26 @@ class MigrationAction is CustomAction
 
   fun ref apply() =>
     _registry.begin_migration(_target_workers)
-    false
 
-class PauseBeforeShrinkNotify is TimerNotify
+class LeavingMigrationAction is CustomAction
   let _auth: AmbientAuth
   let _worker_name: String
   let _connections: Connections
   let _remaining_workers: Array[String] val
   let _leaving_workers: Array[String] val
+  let _connections: Connections
 
   new iso create(auth: AmbientAuth, worker_name: String,
     connections: Connections, remaining_workers: Array[String] val,
-    leaving_workers: Array[String] val)
+    leaving_workers: Array[String] val, connections: Connections)
   =>
     _auth = auth
     _worker_name = worker_name
-    _connections = connections
     _remaining_workers = remaining_workers
     _leaving_workers = leaving_workers
+    _connections = connections
 
-  fun ref apply(timer: Timer, count: U64): Bool =>
+  fun ref apply() =>
     try
       let msg = ChannelMsgEncoder.begin_leaving_migration(_remaining_workers,
         _leaving_workers, _auth)?
@@ -1256,7 +1253,6 @@ class PauseBeforeShrinkNotify is TimerNotify
     else
       Fail()
     end
-    false
 
 class LogRotationAction is CustomAction
   let _registry: RouterRegistry
@@ -1266,7 +1262,6 @@ class LogRotationAction is CustomAction
 
   fun ref apply() =>
     _registry.begin_log_rotation()
-    false
 
 // TODO: Replace using this with the badly named SetIs once we address a bug
 // in SetIs where unsetting doesn't reduce set size for type SetIs[String].
