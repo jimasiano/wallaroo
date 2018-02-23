@@ -354,6 +354,9 @@ class ControlChannelConnectNotifier is TCPConnectionNotify
         @printf[I32]("Control Ch: Received Unmute Request from %s\n".cstring(),
           m.originating_worker.cstring())
         _router_registry.remote_unmute_request(m.originating_worker)
+      | let m: RequestFinishedAckMsg =>
+        _router_registry.remote_request_finished_ack(m.sender,
+          m.request_id)
       | let m: RotateLogFilesMsg =>
         @printf[I32]("Control Ch: Received Rotate Log Files request\n"
           .cstring())
