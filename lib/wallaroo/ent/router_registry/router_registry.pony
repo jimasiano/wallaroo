@@ -669,10 +669,10 @@ actor RouterRegistry is FinishedAckRequester
     in-flight messages to finish processing.
     """
     _stop_the_world_in_process = true
-    _stop_the_world(new_workers)
+    _stop_the_world_for_grow_migration(new_workers)
     _request_finished_acks(MigrationAction(this, new_workers))
 
-  fun ref _stop_the_world(new_workers: Array[String] val) =>
+  fun ref _stop_the_world_for_grow_migration(new_workers: Array[String] val) =>
     """
     We currently stop all message processing before migrating partitions and
     updating routers/routes.
@@ -812,6 +812,23 @@ actor RouterRegistry is FinishedAckRequester
         // empty for grow and _leaving_workers is empty for shrink
         Fail()
       end
+    end
+
+  be remote_request_finished_ack(originating_worker: String,
+    upstream_request_id: RequestId)
+  =>
+    _finished_ack_waiter.set_custom_action(AckFinishedAction(_auth,
+      _worker_name, originating_worker, upstream_request_id, _connections))
+
+    if _sources.size() > 0 then
+      for source in _sources.values() do
+        @printf[I32]("!@ -- Stopping world for source %s\n".cstring(),
+          (digestof source).string().cstring())
+        let request_id = _finished_ack_waiter.add_consumer_request()
+        source.request_finished_ack(request_id, this)
+      end
+    else
+      _finished_ack_waiter.run_custom_action()
     end
 
   be process_migrating_target_ack(target: String) =>
@@ -973,7 +990,7 @@ actor RouterRegistry is FinishedAckRequester
         @printf[I32]("-- -- %s\n".cstring(), w.cstring())
       end
       _stop_the_world_in_process = true
-      _stop_the_world_for_shrink()
+      _stop_the_world_for_shrink_migration()
       try
         let msg = ChannelMsgEncoder.prepare_shrink(remaining_workers,
           leaving_workers, _auth)?
@@ -1007,7 +1024,7 @@ actor RouterRegistry is FinishedAckRequester
     end
     if not _stop_the_world_in_process then
       _stop_the_world_in_process = true
-      _stop_the_world_for_shrink()
+      _stop_the_world_for_shrink_migration()
     end
 
     for w in leaving_workers.values() do
@@ -1054,7 +1071,7 @@ actor RouterRegistry is FinishedAckRequester
       _migrate_all_partition_steps(state_name, rws)
     end
 
-  fun ref _stop_the_world_for_shrink() =>
+  fun ref _stop_the_world_for_shrink_migration() =>
     """
     We currently stop all message processing before migrating partitions and
     updating routers/routes.
@@ -1262,6 +1279,31 @@ class LeavingMigrationAction is CustomAction
           _connections.send_control(w, msg)?
         end
       end
+    else
+      Fail()
+    end
+
+class AckFinishedAction is CustomAction
+  let _auth: AmbientAuth
+  let _worker: String
+  let _originating_worker: String
+  let _request_id: RequestId
+  let _connections: Connections
+
+  new iso create(auth: AmbientAuth, worker: String, originating_worker: String,
+    request_id: RequestId, connections: Connections)
+  =>
+    _auth = auth
+    _worker = worker
+    _originating_worker = originating_worker
+    _request_id = request_id
+    _connections = connections
+
+  fun apply() =>
+    try
+      let finished_ack_msg =
+        ChannelMsgEncoder.finished_ack(_worker, _request_id, _auth)?
+      _connections.send_control(_originating_worker, finished_ack_msg)
     else
       Fail()
     end
