@@ -150,6 +150,7 @@ actor DataReceiver is Producer
 
   be request_finished_ack_complete(requester_id: StepId) =>
     @printf[I32]("!@ request_finished_ack_complete DATA RECEIVER\n".cstring())
+    _router.request_finished_ack_complete(requester_id, this)
 
   be try_finish_request_early(requester_id: StepId) =>
     _finished_ack_waiter.try_finish_request_early(requester_id)

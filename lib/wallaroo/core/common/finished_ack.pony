@@ -113,6 +113,9 @@ class FinishedAckWaiter
     end
     request_id
 
+  fun already_added_request(requester_id: StepId): Bool =>
+    _upstream_request_ids.contains(requester_id)
+
   fun ref unmark_consumer_request(request_id: RequestId) =>
     try
       @printf[I32]("!@ -> _downstream_request_ids.lookup %s\n".cstring(), request_id.string().cstring())
@@ -131,14 +134,19 @@ class FinishedAckWaiter
     end
 
   fun ref try_finish_request_early(requester_id: StepId) =>
+    @printf[I32]("!@ try_finish_request_early\n".cstring())
     _check_send_run(requester_id)
 
   fun ref _check_send_run(requester_id: StepId) =>
     try
+      @printf[I32]("!@ 1\n".cstring())
       if _pending_acks(requester_id)?.size() == 0 then
+        @printf[I32]("!@ 2\n".cstring())
         let upstream_request_id = _upstream_request_ids(requester_id)?
+        @printf[I32]("!@ 3\n".cstring())
         _upstream_requesters(requester_id)?
           .receive_finished_ack(upstream_request_id)
+        @printf[I32]("!@ 4\n".cstring())
         if _custom_actions.contains(requester_id) then
           _custom_actions(requester_id)?()
           _custom_actions.remove(requester_id)?

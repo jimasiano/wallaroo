@@ -844,12 +844,8 @@ actor RouterRegistry is FinishedAckRequester
   be remote_request_finished_ack_complete(originating_worker: String,
     upstream_requester_id: StepId)
   =>
-    if _sources.size() > 0 then
-      for source in _sources.values() do
-        source.request_finished_ack_complete(_id, this)
-      end
-    else
-      _finished_ack_waiter.try_finish_request_early(upstream_requester_id)
+    for source in _sources.values() do
+      source.request_finished_ack_complete(_id, this)
     end
 
   be process_migrating_target_ack(target: String) =>

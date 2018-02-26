@@ -449,14 +449,17 @@ actor OutgoingBoundary is Consumer
     requester_id: StepId, upstream_requester: FinishedAckRequester)
   =>
     @printf[I32]("!@ request_finished_ack BOUNDARY\n".cstring())
-    try
-      _finished_ack_waiter.add_new_request(requester_id, upstream_request_id,
-        upstream_requester)
-      let request_id = _finished_ack_waiter.add_consumer_request(requester_id)
-      _writev(ChannelMsgEncoder.request_finished_ack(_worker_name, request_id,
-        requester_id, _auth)?)
-    else
-      Fail()
+    if not _finished_ack_waiter.already_added_request(requester_id) then
+      try
+        _finished_ack_waiter.add_new_request(requester_id, upstream_request_id,
+          upstream_requester)
+        let request_id = _finished_ack_waiter.add_consumer_request(
+          requester_id)
+        _writev(ChannelMsgEncoder.request_finished_ack(_worker_name,
+          request_id, requester_id, _auth)?)
+      else
+        Fail()
+      end
     end
 
   be request_finished_ack_complete(requester_id: StepId,
