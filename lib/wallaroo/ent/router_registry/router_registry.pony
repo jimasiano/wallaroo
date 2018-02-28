@@ -825,6 +825,7 @@ actor RouterRegistry is FinishedAckRequester
   be remote_request_finished_ack(originating_worker: String,
     upstream_request_id: RequestId, upstream_requester_id: StepId)
   =>
+    @printf[I32]("!@ remote_request_finished_ack REGISTRY %s\n".cstring(), _id.string().cstring())
     _finished_ack_waiter.add_new_request(upstream_requester_id,
       upstream_request_id where custom_action = AckFinishedAction(_auth,
         _worker_name, originating_worker, upstream_request_id, _connections))
@@ -870,6 +871,7 @@ actor RouterRegistry is FinishedAckRequester
     """
     Get finished acks from all sources
     """
+    @printf[I32]("!@ _request_finished_acks REGISTRY %s\n".cstring(), _id.string().cstring())
     _finished_ack_waiter.initiate_request(_id, custom_action)
     _connections.request_finished_acks(_id, this, excluded_workers)
 
