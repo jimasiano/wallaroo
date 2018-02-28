@@ -30,8 +30,8 @@ CMD_PYTHON = 'machida --application-module alphabet'
 CYCLES=4
 
 
-def test_autoscale_pony_grow_by_1():
-    autoscale_sequence(CMD_PONY, ops=[1], cycles=CYCLES)
+# def test_autoscale_pony_grow_by_1():
+    # autoscale_sequence(CMD_PONY, ops=[1], cycles=CYCLES)
 
 
 def test_autoscale_pony_grow_by_1_grow_by_many():
