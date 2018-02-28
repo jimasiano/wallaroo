@@ -63,7 +63,7 @@ actor Step is (Producer & Consumer)
   var _initialized: Bool = false
   var _seq_id_initialized_on_recovery: Bool = false
   var _ready_to_work_routes: SetIs[RouteLogic] = _ready_to_work_routes.create()
-  var _finished_ack_waiter: FinishedAckWaiter = FinishedAckWaiter
+  var _finished_ack_waiter: FinishedAckWaiter
   let _recovery_replayer: RecoveryReplayer
 
   let _acker_x: Acker = Acker
@@ -91,6 +91,8 @@ actor Step is (Producer & Consumer)
     _recovery_replayer = recovery_replayer
     _recovery_replayer.register_step(this)
     _id = id
+    _finished_ack_waiter = FinishedAckWaiter(_id)
+
     for (state_name, boundary) in _outgoing_boundaries.pairs() do
       _outgoing_boundaries(state_name) = boundary
     end
@@ -423,8 +425,7 @@ actor Step is (Producer & Consumer)
     | let nmp: NormalStepMessageProcessor =>
       _step_message_processor = QueueingStepMessageProcessor(this)
     end
-    @printf[I32]("!@ request_finished_ack STEP %s\n".cstring(),
-      _id.string().cstring())
+    @printf[I32]("!@ request_finished_ack STEP %s, upstream_request_id: %s\n".cstring(), _id.string().cstring(), upstream_request_id.string().cstring())
     if not _finished_ack_waiter.already_added_request(requester_id) then
       _finished_ack_waiter.add_new_request(requester_id, upstream_request_id,
         requester)
@@ -437,6 +438,8 @@ actor Step is (Producer & Consumer)
       else
         _finished_ack_waiter.try_finish_request_early(requester_id)
       end
+    else
+      requester.receive_finished_ack(upstream_request_id)
     end
 
   be request_finished_ack_complete(requester_id: StepId,
