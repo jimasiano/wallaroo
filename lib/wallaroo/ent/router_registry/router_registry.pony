@@ -701,6 +701,9 @@ actor RouterRegistry is FinishedAckRequester
     """
     Migration is complete and we're ready to resume message processing
     """
+    for source in _sources.values() do
+      source.request_finished_ack_complete(_id, this)
+    end
     _connections.request_finished_acks_complete(_id, this)
     _resume_all_local()
     _stop_the_world_in_process = false
