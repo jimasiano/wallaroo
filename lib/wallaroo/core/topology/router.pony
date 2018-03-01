@@ -191,7 +191,6 @@ class val MultiRouter is Router
   fun request_finished_ack(request_id: RequestId, requester_id: StepId,
     requester: FinishedAckRequester)
   =>
-    // !@ TODO: Handle this correctly for multi sink
     for router in _routers.values() do
       router.request_finished_ack(request_id, requester_id, requester)
     end
