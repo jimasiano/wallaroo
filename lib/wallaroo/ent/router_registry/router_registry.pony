@@ -829,15 +829,14 @@ actor RouterRegistry is FinishedAckRequester
   be remote_request_finished_ack(originating_worker: String,
     upstream_request_id: RequestId, upstream_requester_id: StepId)
   =>
-    @printf[I32]("!@ remote_request_finished_ack REGISTRY %s\n".cstring(), _id.string().cstring())
+    // @printf[I32]("!@ remote_request_finished_ack REGISTRY %s\n".cstring(), _id.string().cstring())
     _finished_ack_waiter.add_new_request(upstream_requester_id,
       upstream_request_id where custom_action = AckFinishedAction(_auth,
         _worker_name, originating_worker, upstream_request_id, _connections))
 
     if _sources.size() > 0 then
       for source in _sources.values() do
-        @printf[I32]("!@ -- Stopping world for source %s\n".cstring(),
-          (digestof source).string().cstring())
+        // @printf[I32]("!@ -- Stopping world for source %s\n".cstring(), (digestof source).string().cstring())
         let request_id =
           _finished_ack_waiter.add_consumer_request(upstream_requester_id)
         source.request_finished_ack(request_id, _id, this)
@@ -875,7 +874,7 @@ actor RouterRegistry is FinishedAckRequester
     """
     Get finished acks from all sources
     """
-    @printf[I32]("!@ _request_finished_acks REGISTRY %s\n".cstring(), _id.string().cstring())
+    // @printf[I32]("!@ _request_finished_acks REGISTRY %s\n".cstring(), _id.string().cstring())
     _finished_ack_waiter.initiate_request(_id, custom_action)
     _connections.request_finished_acks(_id, this, excluded_workers)
 
@@ -902,8 +901,7 @@ actor RouterRegistry is FinishedAckRequester
     _finished_ack_waiter.try_finish_request_early(requester_id)
 
   be receive_finished_ack(request_id: RequestId) =>
-    @printf[I32]("!@ receive_finished_ack REGISTRY for %s\n".cstring(),
-      request_id.string().cstring())
+    // @printf[I32]("!@ receive_finished_ack REGISTRY for %s\n".cstring(), request_id.string().cstring())
     _finished_ack_waiter.unmark_consumer_request(request_id)
 
   fun _stop_all_local() =>
