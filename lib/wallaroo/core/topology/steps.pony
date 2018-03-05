@@ -71,9 +71,6 @@ actor Step is (Producer & Consumer)
   let _outgoing_boundaries: Map[String, OutgoingBoundary] =
     _outgoing_boundaries.create()
 
-  //!@
-  var _complete: Bool = false
-
   new create(auth: AmbientAuth, runner: Runner iso,
     metrics_reporter: MetricsReporter iso,
     id: U128, route_builder: RouteBuilder, event_log: EventLog,
@@ -432,12 +429,8 @@ actor Step is (Producer & Consumer)
     | let nmp: NormalStepMessageProcessor =>
       _step_message_processor = QueueingStepMessageProcessor(this)
     end
-    @printf[I32]("!@ request_finished_ack STEP %s, upstream_request_id: %s, requester_id: %s\n".cstring(), _id.string().cstring(), upstream_request_id.string().cstring(), requester_id.string().cstring())
+    // @printf[I32]("!@ request_finished_ack STEP %s, upstream_request_id: %s, requester_id: %s\n".cstring(), _id.string().cstring(), upstream_request_id.string().cstring(), requester_id.string().cstring())
     if not _finished_ack_waiter.already_added_request(requester_id) then
-      //!@
-      if not _complete then
-        @printf[I32]("!@ NOT COMPLETE MAN\n".cstring())
-      end
       _finished_ack_waiter.add_new_request(requester_id, upstream_request_id,
         requester)
       if _routes.size() > 0 then
@@ -461,9 +454,6 @@ actor Step is (Producer & Consumer)
     | let qmp: QueueingStepMessageProcessor =>
       // Process all queued messages
       qmp.flush()
-
-      //!@
-      _complete = true
 
       _finished_ack_waiter.clear()
       _step_message_processor = NormalStepMessageProcessor(this)
