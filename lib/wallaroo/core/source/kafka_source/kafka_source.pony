@@ -29,7 +29,8 @@ use "wallaroo/core/metrics"
 use "wallaroo/core/routing"
 use "wallaroo/core/topology"
 
-actor KafkaSource[In: Any val] is (Producer & KafkaConsumer)
+actor KafkaSource[In: Any val] is (Producer & FinishedAckResponder &
+  KafkaConsumer)
   let _step_id_gen: StepIdGenerator = StepIdGenerator
   let _routes: MapIs[Consumer, Route] = _routes.create()
   let _route_builder: RouteBuilder
@@ -217,8 +218,11 @@ actor KafkaSource[In: Any val] is (Producer & KafkaConsumer)
   fun ref current_sequence_id(): SeqId =>
     _seq_id
 
-  be stop_the_world(upstream_request_id: U64, rr: FinishedAckRequester) =>
-    _finished_ack_waiter = FinishedAckWaiter(upstream_request_id, rr)
+  be request_finished_ack(upstream_request_id: RequestId,
+    upstream_producer: FinishedAckRequester)
+  =>
+    _finished_ack_waiter = FinishedAckWaiter(upstream_request_id,
+      upstream_producer)
     match _finished_ack_waiter
     | let ack_waiter: FinishedAckWaiter =>
       for route in _routes.values() do
@@ -229,7 +233,7 @@ actor KafkaSource[In: Any val] is (Producer & KafkaConsumer)
       Fail()
     end
 
-  be receive_finished_ack(request_id: U64) =>
+  be receive_finished_ack(request_id: RequestId) =>
     match _finished_ack_waiter
     | let ack_waiter: FinishedAckWaiter =>
       ack_waiter.unmark_consumer_request_and_send(request_id)

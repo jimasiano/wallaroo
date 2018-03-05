@@ -41,8 +41,8 @@ trait Route
     metric_name: String, worker_ingress_ts: U64)
 
   fun ref request_ack()
-  fun ref request_finished_ack(request_id: U64, producer: Producer)
-  fun ref receive_finished_ack(request_id: U64)
+  fun ref request_finished_ack(request_id: RequestId, producer: Producer)
+  fun ref receive_finished_ack(request_id: RequestId)
 
 trait RouteLogic
   fun ref application_initialized(step_type: String)
@@ -112,11 +112,11 @@ class EmptyRoute is Route
     Fail()
     true
 
-  fun ref request_finished_ack(request_id: U64,
+  fun ref request_finished_ack(request_id: RequestId,
     producer: FinishedAckRequester)
   =>
     @printf[I32]("!@ request_finished_ack EMPTY ROUTE\n".cstring())
     producer.receive_finished_ack(request_id)
 
-  fun ref receive_finished_ack(request_id: U64) =>
+  fun ref receive_finished_ack(request_id: RequestId) =>
     None

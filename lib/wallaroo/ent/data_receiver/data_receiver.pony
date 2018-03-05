@@ -142,25 +142,28 @@ actor DataReceiver is Producer
     """This is not a real Producer, so it doesn't write any State"""
     None
 
-  be request_finished_ack(upstream_producer: FinishedAckRequester,
-    upstream_request_id: U64)
+  be request_finished_ack(upstream_request_id: RequestId)
   =>
     @printf[I32]("!@ request_finished_ack DATA RECEIVER\n".cstring())
     //TODO: receive from upstream over network
-    let ack_waiter: FinishedAckWaiter = ack_waiter.create(upstream_request_id,
-      upstream_producer)
+    let ack_waiter: FinishedAckWaiter = ack_waiter.create(upstream_request_id)
     let request_id = ack_waiter.add_consumer_request()
-    _router.request_finished_ack(request_id, upstream_producer)
+    _router.request_finished_ack(request_id, this)
     _finished_ack_waiters(request_id) = ack_waiter
 
-  be receive_finished_ack(request_id: U64) =>
+  be receive_finished_ack(request_id: RequestId) =>
+    @printf[I32]("!@ receive_finished_ack DataReceiver\n".cstring())
     try
       let ack_waiter = _finished_ack_waiters(request_id)?
       ack_waiter.unmark_consumer_request(request_id)
       if ack_waiter.should_send_upstream() then
+        @printf[I32]("!@ should_send_upstream DataReceiver\n".cstring())
         let ack_msg = ChannelMsgEncoder.finished_ack(
           _worker_name, ack_waiter.upstream_request_id, _auth)?
         _write_on_conn(ack_msg)
+      //!@
+      else
+        @printf[I32]("!@ not should_send_upstream DataReceiver\n".cstring())
       end
     else
       Fail()
