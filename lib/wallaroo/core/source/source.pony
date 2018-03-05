@@ -92,14 +92,14 @@ interface val SourceConfig[In: Any val]
   fun source_builder(app_name: String, name: String):
     SourceBuilderBuilder
 
-interface tag Source is (DisposableActor & BoundaryUpdateable)
+interface tag Source is (DisposableActor & BoundaryUpdateable &
+  FinishedAckResponder)
   be update_router(router: PartitionRouter)
   be add_boundary_builders(
     boundary_builders: Map[String, OutgoingBoundaryBuilder] val)
   be reconnect_boundary(target_worker_name: String)
   be mute(c: Consumer)
   be unmute(c: Consumer)
-  be stop_the_world(upstream_request_id: U64, rr: FinishedAckRequester)
 
 interface tag SourceListener is (DisposableActor & BoundaryUpdateable)
   be update_router(router: PartitionRouter)

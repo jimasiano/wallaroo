@@ -406,7 +406,7 @@ actor Step is (Producer & Consumer)
     // end
     _upstreams.unset(producer)
 
-  be request_finished_ack(upstream_request_id: U64,
+  be request_finished_ack(upstream_request_id: RequestId,
     upstream_producer: FinishedAckRequester)
   =>
     @printf[I32]("!@ request_finished_ack STEP %s\n".cstring(),
@@ -419,7 +419,7 @@ actor Step is (Producer & Consumer)
       _finished_ack_waiters(request_id) = ack_waiter
     end
 
-  be receive_finished_ack(request_id: U64) =>
+  be receive_finished_ack(request_id: RequestId) =>
     try
       let ack_waiter = _finished_ack_waiters(request_id)?
       ack_waiter.unmark_consumer_request_and_send(request_id)
