@@ -13,6 +13,7 @@ the License. You may obtain a copy of the License at
 use "collections"
 use "wallaroo_labs/mort"
 use "wallaroo/core/invariant"
+use "wallaroo/core/common"
 
 // TODO: Figure out if there's a compilation order making Fail() appear like
 // it hasn't been declared and then replace None with Fail() in these defaults
@@ -40,7 +41,9 @@ trait tag Cluster
     id: U128, key: K, state_name: String, exclusions: Array[String] val =
     recover Array[String] end)
 
-  be stop_the_world(exclusions: Array[String] val) =>
+  be stop_the_world(upstream_request_id: U64, requester: FinishedAckRequester,
+    exclusions: Array[String] val) 
+  =>
     None
 
   be request_cluster_unmute() =>

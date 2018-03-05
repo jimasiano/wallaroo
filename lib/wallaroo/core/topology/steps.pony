@@ -58,6 +58,7 @@ actor Step is (Producer & Consumer)
   var _initialized: Bool = false
   var _seq_id_initialized_on_recovery: Bool = false
   var _ready_to_work_routes: SetIs[RouteLogic] = _ready_to_work_routes.create()
+  var _finished_ack_waiters: Map[U64, FinishedAckWaiter] = _finished_ack_waiters.create()
   let _recovery_replayer: RecoveryReplayer
 
   let _acker_x: Acker = Acker
@@ -403,6 +404,23 @@ actor Step is (Producer & Consumer)
     //   Invariant(_upstreams.contains(producer))
     // end
     _upstreams.unset(producer)
+
+  be request_finished_ack(upstream_request_id: U64, upstream_producer: FinishedAckRequester) =>
+    let ack_waiter: FinishedAckWaiter = ack_waiter.create(upstream_request_id,
+      upstream_producer)
+    for r in _routes.values() do
+      let request_id = ack_waiter.add_consumer_request()
+      r.request_finished_ack(request_id, this)
+      _finished_ack_waiters(request_id) = ack_waiter
+    end
+
+  be receive_finished_ack(request_id: U64) =>
+    try
+      let ack_waiter = _finished_ack_waiters(request_id)?
+      ack_waiter.unmark_consumer_request_and_send(request_id)
+    else
+      Fail()
+    end
 
   be mute(c: Consumer) =>
     for u in _upstreams.values() do
