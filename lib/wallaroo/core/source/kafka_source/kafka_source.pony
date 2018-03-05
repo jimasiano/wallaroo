@@ -50,6 +50,7 @@ actor KafkaSource[In: Any val] is (Producer & KafkaConsumer)
 
   // Producer (Resilience)
   var _seq_id: SeqId = 1 // 0 is reserved for "not seen yet"
+  var _finished_ack_waiter: (FinishedAckWaiter | None) = None
 
   let _topic: String
   let _partition_id: I32
@@ -215,6 +216,26 @@ actor KafkaSource[In: Any val] is (Producer & KafkaConsumer)
 
   fun ref current_sequence_id(): SeqId =>
     _seq_id
+
+  be stop_the_world(upstream_request_id: U64, rr: FinishedAckRequester) =>
+    _finished_ack_waiter = FinishedAckWaiter(upstream_request_id, rr)
+    match _finished_ack_waiter
+    | let ack_waiter: FinishedAckWaiter =>
+      for route in _routes.values() do
+        let request_id = ack_waiter.add_consumer_request()
+        route.request_finished_ack(request_id, this)
+      end
+    else
+      Fail()
+    end
+
+  be receive_finished_ack(request_id: U64) =>
+    match _finished_ack_waiter
+    | let ack_waiter: FinishedAckWaiter =>
+      ack_waiter.unmark_consumer_request_and_send(request_id)
+    else
+      Fail()
+    end
 
   fun ref _mute() =>
     ifdef debug then
