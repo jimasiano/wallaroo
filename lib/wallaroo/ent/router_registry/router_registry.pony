@@ -50,7 +50,8 @@ actor RouterRegistry is FinishedAckRequester
 
   var _application_ready_to_work: Bool = false
 
-  let _finished_ack_waiter: FinishedAckWaiter = _finished_ack_waiter.create(0, this)
+  let _finished_ack_waiter: FinishedAckWaiter =
+    _finished_ack_waiter.create(0, this)
 
   ////////////////
   // Subscribers
@@ -834,7 +835,8 @@ actor RouterRegistry is FinishedAckRequester
     """
     //TODO: request finished acks on remote workers
     ifdef debug then
-      @printf[I32]("RouterRegistry requesting finished acks for local sources.\n".cstring())
+      @printf[I32](("RouterRegistry requesting finished acks for local " +
+        " sources.\n").cstring())
     end
     for source in _sources.values() do
       let request_id = _finished_ack_waiter.add_consumer_request()
