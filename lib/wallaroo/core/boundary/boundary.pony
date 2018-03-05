@@ -103,6 +103,7 @@ actor OutgoingBoundary is Consumer
   // Consumer
   var _upstreams: SetIs[Producer] = _upstreams.create()
   var _mute_outstanding: Bool = false
+  var _finished_ack_waiters: Map[U64, FinishedAckWaiter] = _finished_ack_waiters.create()
 
   // TCP
   var _notify: WallarooOutgoingNetworkActorNotify
@@ -443,6 +444,25 @@ actor OutgoingBoundary is Consumer
     // end
 
     _upstreams.unset(producer)
+
+  be request_finished_ack(upstream_request_id: U64, upstream_producer: FinishedAckRequester) =>
+    try
+      let ack_waiter: FinishedAckWaiter = ack_waiter.create(upstream_request_id,
+        upstream_producer)
+      let request_id = ack_waiter.add_consumer_request()
+      _writev(ChannelMsgEncoder.request_finished_ack(request_id, _auth)?)
+      _finished_ack_waiters(request_id) = ack_waiter
+    else
+      Fail()
+    end
+
+  be receive_finished_ack(request_id: U64) =>
+    try
+      let ack_waiter = _finished_ack_waiters(request_id)?
+      ack_waiter.unmark_consumer_request_and_send(request_id)
+    else
+      Fail()
+    end
 
   //
   // TCP

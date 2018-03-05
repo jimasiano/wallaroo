@@ -94,6 +94,7 @@ actor TCPSource is Producer
 
   // Producer (Resilience)
   var _seq_id: SeqId = 1 // 0 is reserved for "not seen yet"
+  var _finished_ack_waiter: (FinishedAckWaiter | None) = None
 
   new _accept(listen: TCPSourceListener, notify: TCPSourceNotify iso,
     routes: Array[Consumer] val, route_builder: RouteBuilder,
@@ -280,6 +281,26 @@ actor TCPSource is Producer
   fun ref current_sequence_id(): SeqId =>
     _seq_id
 
+  be stop_the_world(upstream_request_id: U64, rr: FinishedAckRequester) =>
+    _finished_ack_waiter = FinishedAckWaiter(upstream_request_id, rr)
+    match _finished_ack_waiter
+    | let ack_waiter: FinishedAckWaiter =>
+      for route in _routes.values() do
+        let request_id = ack_waiter.add_consumer_request()
+        route.request_finished_ack(request_id, this)
+      end
+    else
+      Fail()
+    end
+
+  be receive_finished_ack(request_id: U64) =>
+    match _finished_ack_waiter
+    | let ack_waiter: FinishedAckWaiter =>
+      ack_waiter.unmark_consumer_request_and_send(request_id)
+    else
+      Fail()
+    end
+
   //
   // TCP
   be _event_notify(event: AsioEventID, flags: U32, arg: U32) =>
@@ -429,7 +450,7 @@ actor TCPSource is Producer
   fun ref _pending_reads() =>
     """
     Unless this connection is currently muted, read while data is available,
-    guessing the next packet length as we go. If we read 4 kb of data, send
+    guessing the next packet length as we go. If we read 5 kb of data, send
     ourself a resume message and stop reading, to avoid starving other actors.
     """
     try

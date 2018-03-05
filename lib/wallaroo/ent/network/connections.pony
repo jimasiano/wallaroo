@@ -262,9 +262,11 @@ actor Connections is Cluster
       Fail()
     end
 
-  be stop_the_world(exclusions: Array[String] val = recover Array[String] end)
+  be stop_the_world(upstream_request_id: U64, requester: FinishedAckRequester,
+    exclusions: Array[String] val = recover Array[String] end)
   =>
     try
+    //TODO: send finished ack request
       let mute_request_msg =
         ChannelMsgEncoder.mute_request(_worker_name, _auth)?
       for (target, ch) in _control_conns.pairs() do

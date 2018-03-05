@@ -54,6 +54,9 @@ actor DataReceiver is Producer
   var _processing_phase: _DataReceiverProcessingPhase =
     _DataReceiverNotProcessingPhase
 
+  var _finished_ack_waiters: Map[U64, FinishedAckWaiter] =
+    _finished_ack_waiters.create()
+
   new create(auth: AmbientAuth, worker_name: String, sender_name: String,
     initialized: Bool = false)
   =>
@@ -138,6 +141,27 @@ actor DataReceiver is Producer
   fun ref flush(low_watermark: SeqId) =>
     """This is not a real Producer, so it doesn't write any State"""
     None
+
+  be request_finished_ack(upstream_producer: FinishedAckRequester, upstream_request_id: U64) =>
+    //TODO: receive from upstream over network
+    let ack_waiter: FinishedAckWaiter = ack_waiter.create(upstream_request_id,
+      upstream_producer)
+    let request_id = ack_waiter.add_consumer_request()
+    _router.request_finished_ack(request_id, upstream_producer)
+    _finished_ack_waiters(request_id) = ack_waiter
+
+  be receive_finished_ack(request_id: U64) =>
+    try
+      let ack_waiter = _finished_ack_waiters(request_id)?
+      ack_waiter.unmark_consumer_request(request_id)
+      if ack_waiter.should_send_upstream() then
+        let ack_msg = ChannelMsgEncoder.finished_ack(
+          ack_waiter.upstream_request_id, _auth)?
+        _write_on_conn(ack_msg)
+      end
+    else
+      Fail()
+    end
 
   //////////////
   // ORIGIN (resilience)
