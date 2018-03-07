@@ -171,7 +171,7 @@ class FinishedAckWaiter
 
   fun ref _check_send_run(requester_id: StepId) =>
     try
-      // @printf[I32]("!@ _pending_acks size: %s for requester_id %s (reported from %s). Listing pending acks:\n".cstring(), _pending_acks(requester_id)?.size().string().cstring(), requester_id.string().cstring(), _step_id.string().cstring())
+      @printf[I32]("!@ _pending_acks size: %s for requester_id %s (reported from %s). Listing pending acks:\n".cstring(), _pending_acks(requester_id)?.size().string().cstring(), requester_id.string().cstring(), _step_id.string().cstring())
       // for pending_ack in _pending_acks(requester_id)?.values() do
       //   @printf[I32]("!@ -- %s\n".cstring(), pending_ack.string().cstring())
       // end

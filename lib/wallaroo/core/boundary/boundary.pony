@@ -449,7 +449,7 @@ actor OutgoingBoundary is Consumer
   be request_finished_ack(upstream_request_id: RequestId,
     requester_id: StepId, upstream_requester: FinishedAckRequester)
   =>
-    // @printf[I32]("!@ request_finished_ack BOUNDARY %s, requester_id: %s, upstream_request_id: %s\n".cstring(), _step_id.string().cstring(), requester_id.string().cstring(), upstream_request_id.string().cstring())
+    @printf[I32]("!@ request_finished_ack BOUNDARY %s, requester_id: %s, upstream_request_id: %s\n".cstring(), _step_id.string().cstring(), requester_id.string().cstring(), upstream_request_id.string().cstring())
 
     // !@
     // if not _finished_ack_waiter.pending_request() then
