@@ -502,7 +502,7 @@ actor OutgoingBoundary is Consumer
     _finished_ack_waiter.try_finish_request_early(requester_id)
 
   be receive_finished_ack(request_id: RequestId) =>
-    // @printf[I32]("!@ receive_finished_ack BOUNDARY\n".cstring())
+    @printf[I32]("!@ receive_finished_ack BOUNDARY %s\n".cstring(), _step_id.string().cstring())
     _finished_ack_waiter.unmark_consumer_request(request_id)
 
   //

@@ -305,22 +305,26 @@ actor TCPSource is (Producer & FinishedAckResponder & StatusReporter)
     end
 
   be request_finished_ack(upstream_request_id: RequestId, requester_id: StepId,
-    requester: FinishedAckRequester)
+    upstream_requester: FinishedAckRequester)
   =>
     @printf[I32]("!@ Source stopping world (%s)\n".cstring(),
       _source_id.string().cstring())
-    _finished_ack_waiter.add_new_request(requester_id, upstream_request_id,
-      requester)
 
-    if _routes.size() > 0 then
-      for route in _routes.values() do
-        @printf[I32]("!@ ---*****---- Add consumer request at Source\n".cstring())
-        let request_id = _finished_ack_waiter.add_consumer_request(
-          requester_id)
-        route.request_finished_ack(request_id, _source_id, this)
+    if not _finished_ack_waiter.already_added_request(requester_id) then
+      _finished_ack_waiter.add_new_request(requester_id, upstream_request_id,
+        upstream_requester)
+      if _routes.size() > 0 then
+        for route in _routes.values() do
+          @printf[I32]("!@ ---*****---- Add consumer request at Source\n".cstring())
+          let request_id = _finished_ack_waiter.add_consumer_request(
+            requester_id)
+          route.request_finished_ack(request_id, _source_id, this)
+        end
+      else
+        upstream_requester.try_finish_request_early(requester_id)
       end
     else
-      requester.try_finish_request_early(requester_id)
+      upstream_requester.receive_finished_ack(upstream_request_id)
     end
 
   be request_finished_ack_complete(requester_id: StepId,
@@ -337,7 +341,7 @@ actor TCPSource is (Producer & FinishedAckResponder & StatusReporter)
     _finished_ack_waiter.try_finish_request_early(requester_id)
 
   be receive_finished_ack(request_id: RequestId) =>
-    // @printf[I32]("!@ receive_finished_ack RECEIVE TCPSource\n".cstring())
+    @printf[I32]("!@ receive_finished_ack RECEIVE TCPSource %s\n".cstring(), _source_id.string().cstring())
     _finished_ack_waiter.unmark_consumer_request(request_id)
 
   //
