@@ -1550,7 +1550,13 @@ actor LocalTopologyInitializer is LayoutInitializer
 
   //!@
   be report_status(code: ReportStatusCode) =>
-    @printf[I32]("!@ LocalTopology report_status\n".cstring())
+    match code
+    | FinishedAcksStatus =>
+      @printf[I32]("!@ LocalTopologyInitializer finished_ack_status\n".cstring())
+    | BoundaryCountStatus =>
+      @printf[I32]("LocalTopologyInitializer knows about %s boundaries\n"
+        .cstring(), _outgoing_boundaries.size().string().cstring())
+    end
     _router_registry.report_status(code)
 
   be initialize_join_initializables() =>
