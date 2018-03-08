@@ -846,17 +846,19 @@ actor RouterRegistry is FinishedAckRequester
     _unmute_request(originating_worker)
 
   fun ref _unmute_request(originating_worker: String) =>
-    _stopped_worker_waiting_list.unset(originating_worker)
-    if (_stopped_worker_waiting_list.size() == 0) then
-      if (_migration_target_ack_list.size() == 0) and
-        (_leaving_workers.size() == 0)
-      then
-        @printf[I32]("!@ _unmute_request _resume_the_world\n".cstring())
-        _resume_the_world()
-      else
-        // We should only unmute ourselves once _migration_target_ack_list is
-        // empty for grow and _leaving_workers is empty for shrink
-        Fail()
+    if _stopped_worker_waiting_list.size() > 0 then
+      _stopped_worker_waiting_list.unset(originating_worker)
+      if (_stopped_worker_waiting_list.size() == 0) then
+        if (_migration_target_ack_list.size() == 0) and
+          (_leaving_workers.size() == 0)
+        then
+          @printf[I32]("!@ _unmute_request _resume_the_world\n".cstring())
+          _resume_the_world()
+        else
+          // We should only unmute ourselves once _migration_target_ack_list is
+          // empty for grow and _leaving_workers is empty for shrink
+          Fail()
+        end
       end
     end
 
