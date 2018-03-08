@@ -170,7 +170,7 @@ class FinishedAckWaiter
     _check_send_run(requester_id)
 
   fun ref clear() =>
-    @printf[I32]("!@ finished_ack CLEAR on %s\n".cstring(), _step_id.string().cstring())
+    // @printf[I32]("!@ finished_ack CLEAR on %s\n".cstring(), _step_id.string().cstring())
     _pending_acks.clear()
     _downstream_request_ids.clear()
     _upstream_request_ids.clear()

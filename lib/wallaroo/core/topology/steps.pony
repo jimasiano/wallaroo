@@ -93,13 +93,34 @@ actor Step is (Producer & Consumer)
     _id = id
     _finished_ack_waiter = FinishedAckWaiter(_id)
 
-    for (state_name, boundary) in _outgoing_boundaries.pairs() do
-      _outgoing_boundaries(state_name) = boundary
+    for (worker, boundary) in _outgoing_boundaries.pairs() do
+      _outgoing_boundaries(worker) = boundary
     end
     _event_log.register_producer(this, id)
 
     let initial_router = _runner.clone_router_and_set_input_type(router)
     _update_router(initial_router)
+
+    for consumer in _router.routes().values() do
+      if not _routes.contains(consumer) then
+        _routes(consumer) =
+          _route_builder(this, consumer, _metrics_reporter)
+      end
+    end
+
+    for boundary in _outgoing_boundaries.values() do
+      if not _routes.contains(boundary) then
+        _routes(boundary) =
+          _route_builder(this, boundary, _metrics_reporter)
+      end
+    end
+
+    for r in _routes.values() do
+      ifdef "resilience" then
+        _acker_x.add_route(r)
+      end
+    end
+
     _step_message_processor = NormalStepMessageProcessor(this)
 
   //
@@ -120,8 +141,10 @@ actor Step is (Producer & Consumer)
     end
 
     for boundary in _outgoing_boundaries.values() do
-      _routes(boundary) =
-        _route_builder(this, boundary, _metrics_reporter)
+      if not _routes.contains(boundary) then
+        _routes(boundary) =
+          _route_builder(this, boundary, _metrics_reporter)
+      end
     end
 
     for r in _routes.values() do
@@ -246,9 +269,6 @@ actor Step is (Producer & Consumer)
   be remove_boundary(worker: String) =>
     if _outgoing_boundaries.contains(worker) then
       try
-        //!@
-        var before_count = _outgoing_boundaries.size()
-
         let boundary = _outgoing_boundaries(worker)?
         _routes(boundary)?.dispose()
         _routes.remove(boundary)?
@@ -441,6 +461,7 @@ actor Step is (Producer & Consumer)
     match code
     | FinishedAcksStatus =>
       _finished_ack_waiter.report_status(code)
+    //!@
     | BoundaryCountStatus =>
       var b_count: USize = 0
       for r in _routes.values() do
@@ -498,7 +519,7 @@ actor Step is (Producer & Consumer)
     _finished_ack_waiter.try_finish_request_early(requester_id)
 
   be receive_finished_ack(request_id: RequestId) =>
-    @printf[I32]("!@ receive_finished_ack STEP %s\n".cstring(), _id.string().cstring())
+    // @printf[I32]("!@ receive_finished_ack STEP %s\n".cstring(), _id.string().cstring())
     _finished_ack_waiter.unmark_consumer_request(request_id)
 
   be mute(c: Consumer) =>

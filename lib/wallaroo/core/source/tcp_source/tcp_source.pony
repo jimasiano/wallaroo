@@ -341,7 +341,7 @@ actor TCPSource is (Producer & FinishedAckResponder & StatusReporter)
     _finished_ack_waiter.try_finish_request_early(requester_id)
 
   be receive_finished_ack(request_id: RequestId) =>
-    @printf[I32]("!@ receive_finished_ack RECEIVE TCPSource %s\n".cstring(), _source_id.string().cstring())
+    // @printf[I32]("!@ receive_finished_ack RECEIVE TCPSource %s\n".cstring(), _source_id.string().cstring())
     _finished_ack_waiter.unmark_consumer_request(request_id)
 
   //

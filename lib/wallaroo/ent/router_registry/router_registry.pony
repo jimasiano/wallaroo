@@ -282,8 +282,11 @@ actor RouterRegistry is FinishedAckRequester
     for (worker, boundary) in bs.pairs() do
       if not _outgoing_boundaries.contains(worker) then
         _outgoing_boundaries(worker) = boundary
+        //!@
         new_boundaries(worker) = boundary
       end
+      //!@
+      // new_boundaries(worker) = boundary
     end
     let new_boundaries_sendable: Map[String, OutgoingBoundary] val =
       consume new_boundaries
@@ -400,6 +403,8 @@ actor RouterRegistry is FinishedAckRequester
     | let omnr: OmniRouter =>
       _omni_router = omnr.remove_boundary(worker)
     end
+
+    _distribute_omni_router()
 
     for subs in _partition_router_subs.values() do
       for sub in subs.values() do
@@ -1301,9 +1306,9 @@ actor RouterRegistry is FinishedAckRequester
     try
       match target
       | let step: Step =>
+        _register_omni_router_step(step)
         _data_router = _data_router.add_route(id, step)
         _distribute_data_router()
-        _register_omni_router_step(step)
         _distribute_omni_router()
         let partition_router =
           _partition_routers(state_name)?.update_route[K](key, step)?
