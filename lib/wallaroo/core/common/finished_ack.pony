@@ -88,7 +88,7 @@ class FinishedAckWaiter
       match upstream_requester'
       | let far: FinishedAckRequester => far
       else
-        InitialFinishedAckRequester(_step_id)
+        EmptyFinishedAckRequester
       end
 
     // If _upstream_request_ids contains the requester_id, then we're
@@ -147,16 +147,21 @@ class FinishedAckWaiter
 
   fun ref unmark_consumer_request(request_id: RequestId) =>
     try
+      // @printf[I32]("!@ unmark_consumer_request 1\n".cstring())
       let requester_id = _downstream_request_ids(request_id)?
       // @printf[I32]("!@ received ack for request_id %s (associated with requester %s). (reported from %s)\n".cstring(), request_id.string().cstring(), requester_id.string().cstring(), _step_id.string().cstring())
+      // @printf[I32]("!@ unmark_consumer_request 2\n".cstring())
       let id_set = _pending_acks(requester_id)?
       ifdef debug then
         Invariant(id_set.contains(request_id))
       end
       id_set.unset(request_id)
+      // @printf[I32]("!@ unmark_consumer_request 3\n".cstring())
       _downstream_request_ids.remove(request_id)?
+      // @printf[I32]("!@ unmark_consumer_request COMPLETE\n".cstring())
       _check_send_run(requester_id)
     else
+      @printf[I32]("!@ About to fail on %s\n".cstring(), _step_id.string().cstring())
       Fail()
     end
 
@@ -165,9 +170,12 @@ class FinishedAckWaiter
     _check_send_run(requester_id)
 
   fun ref clear() =>
+    @printf[I32]("!@ finished_ack CLEAR on %s\n".cstring(), _step_id.string().cstring())
     _pending_acks.clear()
+    _downstream_request_ids.clear()
     _upstream_request_ids.clear()
     _upstream_requesters.clear()
+    _custom_actions.clear()
 
   //!@
   fun report_status(code: ReportStatusCode) =>

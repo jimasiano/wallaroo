@@ -235,7 +235,6 @@ actor Step is (Producer & Consumer)
   fun ref _add_boundaries(boundaries: Map[String, OutgoingBoundary] val) =>
     for (worker, boundary) in boundaries.pairs() do
       if not _outgoing_boundaries.contains(worker) then
-        @printf[I32]("!@ STEP Adding boundary to %s\n".cstring(), worker.cstring())
         _outgoing_boundaries(worker) = boundary
         let new_route = _route_builder(this, boundary, _metrics_reporter)
         _acker_x.add_route(new_route)
@@ -245,7 +244,6 @@ actor Step is (Producer & Consumer)
     // @printf[I32]("!@ step add_boundaries routes: %s\n".cstring(), _routes.size().string().cstring())
 
   be remove_boundary(worker: String) =>
-    @printf[I32]("!@ STEP remove_boundary for %s\n".cstring(), worker.cstring())
     if _outgoing_boundaries.contains(worker) then
       try
         //!@
@@ -255,14 +253,12 @@ actor Step is (Producer & Consumer)
         _routes(boundary)?.dispose()
         _routes.remove(boundary)?
         _outgoing_boundaries.remove(worker)?
-
-        @printf[I32]("!@ REMOVE BOUNDARY, before: %s, after: %s\n".cstring(), before_count.string().cstring(), _outgoing_boundaries.size().string().cstring())
       else
         Fail()
       end
     //!@
     else
-      @printf[I32]("!@ !!!!!!!! FAIL CAN'T REMOVE! %s from %s\n".cstring(), worker.cstring(), _id.string().cstring())
+      // @printf[I32]("!@ !!!!!!!! FAIL CAN'T REMOVE! %s from %s\n".cstring(), worker.cstring(), _id.string().cstring())
       None
     end
 
@@ -502,6 +498,7 @@ actor Step is (Producer & Consumer)
     _finished_ack_waiter.try_finish_request_early(requester_id)
 
   be receive_finished_ack(request_id: RequestId) =>
+    @printf[I32]("!@ receive_finished_ack STEP %s\n".cstring(), _id.string().cstring())
     _finished_ack_waiter.unmark_consumer_request(request_id)
 
   be mute(c: Consumer) =>
