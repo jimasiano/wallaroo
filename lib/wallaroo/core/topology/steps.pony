@@ -235,6 +235,7 @@ actor Step is (Producer & Consumer)
   fun ref _add_boundaries(boundaries: Map[String, OutgoingBoundary] val) =>
     for (worker, boundary) in boundaries.pairs() do
       if not _outgoing_boundaries.contains(worker) then
+        @printf[I32]("!@ STEP Adding boundary to %s\n".cstring(), worker.cstring())
         _outgoing_boundaries(worker) = boundary
         let new_route = _route_builder(this, boundary, _metrics_reporter)
         _acker_x.add_route(new_route)
@@ -244,18 +245,24 @@ actor Step is (Producer & Consumer)
     // @printf[I32]("!@ step add_boundaries routes: %s\n".cstring(), _routes.size().string().cstring())
 
   be remove_boundary(worker: String) =>
+    @printf[I32]("!@ STEP remove_boundary for %s\n".cstring(), worker.cstring())
     if _outgoing_boundaries.contains(worker) then
       try
+        //!@
+        var before_count = _outgoing_boundaries.size()
+
         let boundary = _outgoing_boundaries(worker)?
         _routes(boundary)?.dispose()
         _routes.remove(boundary)?
         _outgoing_boundaries.remove(worker)?
+
+        @printf[I32]("!@ REMOVE BOUNDARY, before: %s, after: %s\n".cstring(), before_count.string().cstring(), _outgoing_boundaries.size().string().cstring())
       else
         Fail()
       end
     //!@
     else
-      // @printf[I32]("!@ !!!!!!!! FAIL CAN'T REMOVE! %s from %s\n".cstring(), worker.cstring(), _id.string().cstring())
+      @printf[I32]("!@ !!!!!!!! FAIL CAN'T REMOVE! %s from %s\n".cstring(), worker.cstring(), _id.string().cstring())
       None
     end
 
@@ -458,7 +465,7 @@ actor Step is (Producer & Consumer)
     | let nmp: NormalStepMessageProcessor =>
       _step_message_processor = QueueingStepMessageProcessor(this)
     end
-    @printf[I32]("!@ request_finished_ack STEP %s, upstream_request_id: %s, requester_id: %s\n".cstring(), _id.string().cstring(), upstream_request_id.string().cstring(), requester_id.string().cstring())
+    // @printf[I32]("!@ request_finished_ack STEP %s, upstream_request_id: %s, requester_id: %s\n".cstring(), _id.string().cstring(), upstream_request_id.string().cstring(), requester_id.string().cstring())
     if not _finished_ack_waiter.already_added_request(requester_id) then
       _finished_ack_waiter.add_new_request(requester_id, upstream_request_id,
         requester)

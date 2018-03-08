@@ -395,7 +395,12 @@ actor RouterRegistry is FinishedAckRequester
     end
     _distribute_omni_router()
 
-  fun _distribute_boundary_removal(worker: String) =>
+  fun ref _distribute_boundary_removal(worker: String) =>
+    match _omni_router
+    | let omnr: OmniRouter =>
+      _omni_router = omnr.remove_boundary(worker)
+    end
+
     for subs in _partition_router_subs.values() do
       for sub in subs.values() do
         match sub
@@ -854,7 +859,13 @@ actor RouterRegistry is FinishedAckRequester
 
   //!@
   be report_status(code: ReportStatusCode) =>
-    @printf[I32]("!@ RouterRegistry finished_ack_status\n".cstring())
+    match code
+    | FinishedAcksStatus =>
+      @printf[I32]("!@ RouterRegistry finished_ack_status\n".cstring())
+    | BoundaryCountStatus =>
+      @printf[I32]("RouterRegistry knows about %s boundaries\n"
+        .cstring(), _outgoing_boundaries.size().string().cstring())
+    end
     for source in _sources.values() do
       source.report_status(code)
     end
