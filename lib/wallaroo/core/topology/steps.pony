@@ -499,19 +499,26 @@ actor Step is (Producer & Consumer)
       requester.receive_finished_ack(upstream_request_id)
     end
 
-  be request_finished_ack_complete(requester_id: StepId,
+  be request_finished_complete_ack(complete_request_id: FinishedAckCompleteId,
+    request_id: RequestId, requester_id: StepId,
     requester: FinishedAckRequester)
   =>
-    // @printf[I32]("!@ request_finished_ack_complete STEP\n".cstring())
-    match _step_message_processor
-    | let qmp: QueueingStepMessageProcessor =>
-      // Process all queued messages
-      qmp.flush()
+     // @printf[I32]("!@ request_finished_complete_ack STEP\n".cstring())
+    if _finished_ack_waiter.request_finished_complete_ack(complete_request_id,
+      request_id, requester_id, requester)
+    then
+      match _step_message_processor
+      | let qmp: QueueingStepMessageProcessor =>
+        // Process all queued messages
+        qmp.flush()
 
-      _finished_ack_waiter.clear()
-      _step_message_processor = NormalStepMessageProcessor(this)
+        _step_message_processor = NormalStepMessageProcessor(this)
+      end
       for r in _routes.values() do
-        r.request_finished_ack_complete(_id, this)
+        let new_request_id =
+          _finished_ack_waiter.add_consumer_complete_request()
+        r.request_finished_complete_ack(complete_request_id,
+          new_request_id, _id, this)
       end
     end
 
@@ -521,6 +528,9 @@ actor Step is (Producer & Consumer)
   be receive_finished_ack(request_id: RequestId) =>
     // @printf[I32]("!@ receive_finished_ack STEP %s\n".cstring(), _id.string().cstring())
     _finished_ack_waiter.unmark_consumer_request(request_id)
+
+  be receive_finished_complete_ack(request_id: RequestId) =>
+    _finished_ack_waiter.unmark_consumer_complete_request(request_id)
 
   be mute(c: Consumer) =>
     for u in _upstreams.values() do

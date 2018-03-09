@@ -312,20 +312,37 @@ actor Connections is Cluster
       router_registry.try_finish_request_early(requester_id)
     end
 
-  be request_finished_acks_complete(requester_id: StepId,
-    router_registry: RouterRegistry)
+  be request_finished_acks_complete(complete_request_id: FinishedAckCompleteId,
+    requester_id: StepId, router_registry: RouterRegistry,
+    exclusions: Array[String] val = recover Array[String] end)
   =>
+    let id_gen = RequestIdGenerator
+    let request_ids = recover Array[RequestId] end
+    var sent_request_msg = false
     try
       for (target, ch) in _control_conns.pairs() do
-        if target != _worker_name then
-          let finished_ack_request_complete_msg =
-            ChannelMsgEncoder.request_finished_ack_complete(_worker_name,
-              requester_id, _auth)?
-          ch.writev(finished_ack_request_complete_msg)
+        if
+          (target != _worker_name) and
+          (not exclusions.contains(target,
+            {(a: String, b: String): Bool => a == b}))
+        then
+          let next_request_id = id_gen()
+          request_ids.push(next_request_id)
+          let finished_complete_ack_request_msg =
+            ChannelMsgEncoder.request_finished_complete_ack(_worker_name,
+              complete_request_id, next_request_id, requester_id, _auth)?
+          ch.writev(finished_complete_ack_request_msg)
+          sent_request_msg = true
         end
       end
     else
       Fail()
+    end
+    if sent_request_msg then
+      router_registry.add_connection_request_ids_for_complete(
+        consume request_ids)
+    else
+      router_registry.try_finish_complete_request_early(requester_id)
     end
 
   be request_cluster_unmute() =>
@@ -565,9 +582,13 @@ actor Connections is Cluster
     _control_addrs(target_name) = (host, service)
     let tcp_conn_wrapper =
       if _control_conns.contains(target_name) then
-        try _control_conns(target_name)? else Fail(); ControlConnection end
+        try
+          _control_conns(target_name)?
+        else
+          Fail(); ControlConnection(this)
+        end
       else
-        ControlConnection
+        ControlConnection(this)
       end
     _control_conns(target_name) = tcp_conn_wrapper
     _register_disposable(tcp_conn_wrapper)

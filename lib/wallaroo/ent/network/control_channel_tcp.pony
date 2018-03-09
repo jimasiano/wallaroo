@@ -360,8 +360,8 @@ class ControlChannelConnectNotifier is TCPConnectionNotify
           m.request_id, m.requester_id)
       | let m: RequestFinishedAckCompleteMsg =>
         @printf[I32]("!@ RequestFinishedAckCompleteMsg COMPLETE from %s\n".cstring(), m.sender.cstring())
-        _router_registry.remote_request_finished_ack_complete(m.sender,
-          m.requester_id)
+        _router_registry.remote_request_finished_complete_ack(m.sender,
+          m.complete_request_id, m.request_id, m.requester_id)
       | let m: FinishedAckMsg =>
         @printf[I32]("!@ FINISHEDACKMSG\n".cstring())
         ifdef "trace" then
@@ -369,6 +369,13 @@ class ControlChannelConnectNotifier is TCPConnectionNotify
             m.sender.cstring())
         end
         _router_registry.receive_finished_ack(m.request_id)
+      | let m: FinishedCompleteAckMsg =>
+        @printf[I32]("!@ FINISHEDCOMPLETEACKMSG\n".cstring())
+        ifdef "trace" then
+          @printf[I32]("Received FinishedCompleteAckMsg from %s\n".cstring(),
+            m.sender.cstring())
+        end
+        _router_registry.receive_finished_complete_ack(m.request_id)
       | let m: RotateLogFilesMsg =>
         @printf[I32]("Control Ch: Received Rotate Log Files request\n"
           .cstring())
@@ -388,6 +395,7 @@ class ControlChannelConnectNotifier is TCPConnectionNotify
     true
 
   fun ref connected(conn: TCPConnection ref) =>
+    _connections.register_disposable(conn)
     @printf[I32]("ControlChannelConnectNotifier: connected.\n".cstring())
 
   fun ref connect_failed(conn: TCPConnection ref) =>

@@ -282,7 +282,8 @@ class DataChannelConnectNotifier is DataChannelNotify
           @printf[I32]("Received RequestFinishedAckCompleteMsg from %s\n"
             .cstring(), m.sender.cstring())
         end
-        _receiver.request_finished_ack_complete(m.requester_id)
+        _receiver.request_finished_complete_ack(m.complete_request_id,
+          m.request_id, m.requester_id)
       | let m: UnknownChannelMsg =>
         @printf[I32]("Unknown Wallaroo data message type: UnknownChannelMsg.\n"
           .cstring())
@@ -323,7 +324,8 @@ trait _DataReceiverWrapper
   fun report_status(code: ReportStatusCode)
 
   fun request_finished_ack(request_id: RequestId, requester_id: StepId)
-  fun request_finished_ack_complete(requester_id: StepId)
+  fun request_finished_complete_ack(complete_request_id: FinishedAckCompleteId,
+    request_id: RequestId, requester_id: StepId)
 
 class _InitDataReceiver is _DataReceiverWrapper
   fun data_connect(sender_step_id: StepId, conn: DataChannel) =>
@@ -349,7 +351,8 @@ class _InitDataReceiver is _DataReceiverWrapper
   fun request_finished_ack(request_id: RequestId, requester_id: StepId) =>
     Fail()
 
-  fun request_finished_ack_complete(requester_id: StepId)
+  fun request_finished_complete_ack(complete_request_id: FinishedAckCompleteId,
+    request_id: RequestId, requester_id: StepId)
   =>
     Fail()
 
@@ -381,6 +384,8 @@ class _DataReceiver is _DataReceiverWrapper
   fun request_finished_ack(request_id: RequestId, requester_id: StepId) =>
     data_receiver.request_finished_ack(request_id, requester_id)
 
-  fun request_finished_ack_complete(requester_id: StepId)
+  fun request_finished_complete_ack(complete_request_id: FinishedAckCompleteId,
+    request_id: RequestId, requester_id: StepId)
   =>
-    data_receiver.request_finished_ack_complete(requester_id)
+    data_receiver.request_finished_complete_ack(complete_request_id,
+      request_id, requester_id)

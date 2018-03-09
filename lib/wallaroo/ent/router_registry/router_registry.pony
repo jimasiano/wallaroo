@@ -123,6 +123,8 @@ actor RouterRegistry is FinishedAckRequester
 
   var _event_log: (EventLog | None) = None
 
+  var _initiated_stop_the_world: Bool = false
+
   new create(auth: AmbientAuth, worker_name: String,
     data_receivers: DataReceivers, c: Connections,
     recovery_file_cleaner: RecoveryFileCleaner, stop_the_world_pause: U64)
@@ -613,17 +615,18 @@ actor RouterRegistry is FinishedAckRequester
     to the new file, before unmuting upstream and resuming processing.
     """
     // stop the world
+    // _initiated_stop_the_world = true
     _stop_the_world_in_process = true
     _stop_all_local()
     _stop_the_world_for_log_rotation()
 
-    //!@
+    //TODO: !@ Replace this with barrier algo
     let timers = Timers
     let timer = Timer(PauseBeforeLogRotationNotify(this),
     _stop_the_world_pause)
     timers(consume timer)
 
-    //!@
+    //TODO: Use barrier algo for log rotation
     // _request_finished_acks(LogRotationAction(this))
 
   be begin_log_rotation() =>
@@ -692,6 +695,9 @@ actor RouterRegistry is FinishedAckRequester
       else
         Fail()
       end
+      // TODO: Where should this line go !@
+      _initiated_stop_the_world = true
+
       migrate_onto_new_workers(new_workers)
       _initialized_joining_workers.clear()
       _joining_worker_count = 0
@@ -718,7 +724,7 @@ actor RouterRegistry is FinishedAckRequester
     """
     _stop_the_world_in_process = true
     _stop_the_world_for_grow_migration(new_workers)
-    _request_finished_acks(MigrationAction(this, new_workers))
+    _initiate_request_finished_acks(MigrationAction(this, new_workers))
 
   fun ref _stop_the_world_for_grow_migration(new_workers: Array[String] val) =>
     """
@@ -738,11 +744,14 @@ actor RouterRegistry is FinishedAckRequester
     Migration is complete and we're ready to resume message processing
     """
     @printf[I32]("!@ _resume_the_world COMPLETE\n".cstring())
-    _finished_ack_waiter.clear()
-    for source in _sources.values() do
-      source.request_finished_ack_complete(_id, this)
+    if _initiated_stop_the_world then
+      let complete_request_id = _finished_ack_waiter
+        .initiate_complete_request()
+      _request_finished_complete_acks(complete_request_id)
+      _connections.request_finished_acks_complete(complete_request_id, _id,
+        this)
+      _initiated_stop_the_world = false
     end
-    _connections.request_finished_acks_complete(_id, this)
     _resume_all_local()
     _stop_the_world_in_process = false
     @printf[I32]("~~~Resuming message processing.~~~\n".cstring())
@@ -884,39 +893,20 @@ actor RouterRegistry is FinishedAckRequester
     upstream_request_id: RequestId, upstream_requester_id: StepId)
   =>
     @printf[I32]("!@ remote_request_finished_ack REGISTRY %s\n".cstring(), _id.string().cstring())
-    if not _finished_ack_waiter.already_added_request(upstream_requester_id)
-    then
-      _finished_ack_waiter.add_new_request(upstream_requester_id,
-        upstream_request_id where custom_action = AckFinishedAction(_auth,
-          _worker_name, originating_worker, upstream_request_id, _connections))
+    _add_remote_finished_ack_request(originating_worker, upstream_request_id,
+      upstream_requester_id)
 
-      if _sources.size() > 0 then
-        for source in _sources.values() do
-          // @printf[I32]("!@ -- Stopping world for source %s\n".cstring(), (digestof source).string().cstring())
-          let request_id =
-            _finished_ack_waiter.add_consumer_request(upstream_requester_id)
-          source.request_finished_ack(request_id, _id, this)
-        end
-      else
-        _finished_ack_waiter.try_finish_request_early(upstream_requester_id)
-      end
-    else
-      try
-        let finished_ack_msg =
-          ChannelMsgEncoder.finished_ack(_worker_name, upstream_request_id,
-            _auth)?
-        _connections.send_control(originating_worker, finished_ack_msg)
-      else
-        Fail()
-      end
-    end
-
-  be remote_request_finished_ack_complete(originating_worker: String,
-    upstream_requester_id: StepId)
+  be remote_request_finished_complete_ack(originating_worker: String,
+    complete_request_id: FinishedAckCompleteId, request_id: RequestId,
+    requester_id: StepId)
   =>
-    @printf[I32]("!@ remote_request_finished_ack_complete from %s !!-!-!!\n".cstring(), originating_worker.cstring())
-    for source in _sources.values() do
-      source.request_finished_ack_complete(_id, this)
+    @printf[I32]("!@ remote_request_finished_complete_ack from %s !!-!-!!\n".cstring(), originating_worker.cstring())
+    if _finished_ack_waiter.request_finished_complete_ack(complete_request_id,
+      request_id, requester_id, EmptyFinishedAckRequester,
+      AckFinishedCompleteAction(_auth, _worker_name, originating_worker,
+        request_id, _connections))
+    then
+      _request_finished_complete_acks(complete_request_id)
     end
 
   be process_migrating_target_ack(target: String) =>
@@ -935,41 +925,105 @@ actor RouterRegistry is FinishedAckRequester
       _unmute_request(_worker_name)
     end
 
-  fun ref _request_finished_acks(custom_action: CustomAction,
+  fun ref _initiate_request_finished_acks(custom_action: CustomAction,
     excluded_workers: Array[String] val = recover Array[String] end)
   =>
-    """
-    Get finished acks from all sources
-    """
-    // @printf[I32]("!@ _request_finished_acks REGISTRY %s\n".cstring(), _id.string().cstring())
     _finished_ack_waiter.initiate_request(_id, custom_action)
     _connections.request_finished_acks(_id, this, excluded_workers)
+    _request_finished_acks(_id)
 
-    //TODO: request finished acks on remote workers
+  fun ref _add_remote_finished_ack_request(originating_worker: String,
+    upstream_request_id: RequestId, upstream_requester_id: StepId)
+  =>
+    if not _finished_ack_waiter.already_added_request(upstream_requester_id)
+    then
+      _finished_ack_waiter.add_new_request(upstream_requester_id,
+        upstream_request_id where custom_action = AckFinishedAction(_auth,
+          _worker_name, originating_worker, upstream_request_id, _connections))
+
+      _request_finished_acks(upstream_requester_id)
+    else
+      try
+        let finished_ack_msg =
+          ChannelMsgEncoder.finished_ack(_worker_name, upstream_request_id,
+            _auth)?
+        _connections.send_control(originating_worker, finished_ack_msg)
+      else
+        Fail()
+      end
+    end
+
+  fun ref _request_finished_acks(requester_id: StepId) =>
+    """
+    Get finished acks from all local sources and steps
+    """
+    // @printf[I32]("!@ _request_finished_acks REGISTRY %s\n".cstring(), _id.string().cstring())
+
+    //TODO: !@request finished acks on remote workers
     ifdef debug then
-      @printf[I32](("RouterRegistry requesting finished acks for local " +
-        "sources.\n").cstring())
+      @printf[I32](("RouterRegistry requesting finished acks for %s local " +
+        "sources and %s local steps/sinks.\n").cstring(),
+        _sources.size().string().cstring(),
+        _data_router.size().string().cstring())
     end
-    @printf[I32]("!@ Stopping world on %s sources\n".cstring(),
-      _sources.size().string().cstring())
+
+    if _has_local_target() then
+      // Request for sources
+      for source in _sources.values() do
+        @printf[I32]("!@ -- Stopping world for source %s\n".cstring(), (digestof source).string().cstring())
+        let request_id =
+          _finished_ack_waiter.add_consumer_request(requester_id)
+        source.request_finished_ack(request_id, _id, this)
+      end
+      @printf[I32]("!@ RouterRegistry requesting %s local steps\n".cstring(), _data_router.size().string().cstring())
+      // Request for local steps and sinks
+      _data_router.request_finished_ack(requester_id, this,
+        _finished_ack_waiter)
+    else
+      _finished_ack_waiter.try_finish_request_early(requester_id)
+    end
+
+  fun ref _request_finished_complete_acks(complete_request_id:
+    FinishedAckCompleteId)
+  =>
+    // Request for sources
     for source in _sources.values() do
-      @printf[I32]("!@ -- Stopping world for source %s\n".cstring(),
-        (digestof source).string().cstring())
-      let request_id = _finished_ack_waiter.add_consumer_request(_id)
-      source.request_finished_ack(request_id, _id, this)
+      let request_id = _finished_ack_waiter.add_consumer_complete_request()
+      source.request_finished_complete_ack(complete_request_id,
+        request_id, _id, this)
     end
+    // Request for local steps and sinks
+    _data_router.request_finished_complete_ack(complete_request_id,
+      _id, this, _finished_ack_waiter)
+
+  fun _has_local_target(): Bool =>
+    """
+    Do we have at least one Source, Step, or Sink on this worker?
+    """
+    (_sources.size() > 0) or (_data_router.size() > 0)
 
   be add_connection_request_ids(r_ids: Array[RequestId] val) =>
     for r_id in r_ids.values() do
       _finished_ack_waiter.add_consumer_request(_id, r_id)
     end
 
+  be add_connection_request_ids_for_complete(r_ids: Array[RequestId] val) =>
+    for r_id in r_ids.values() do
+      _finished_ack_waiter.add_consumer_complete_request(r_id)
+    end
+
   be try_finish_request_early(requester_id: StepId) =>
     _finished_ack_waiter.try_finish_request_early(requester_id)
+
+  be try_finish_complete_request_early(requester_id: StepId) =>
+    _finished_ack_waiter.try_finish_complete_request_early(requester_id)
 
   be receive_finished_ack(request_id: RequestId) =>
     // @printf[I32]("!@ receive_finished_ack REGISTRY for %s\n".cstring(), request_id.string().cstring())
     _finished_ack_waiter.unmark_consumer_request(request_id)
+
+  be receive_finished_complete_ack(request_id: RequestId) =>
+    _finished_ack_waiter.unmark_consumer_complete_request(request_id)
 
   fun _stop_all_local() =>
     """
@@ -1086,6 +1140,7 @@ actor RouterRegistry is FinishedAckRequester
         @printf[I32]("-- -- %s\n".cstring(), w.cstring())
       end
       _stop_the_world_in_process = true
+      _initiated_stop_the_world = true
       _stop_the_world_for_shrink_migration()
       try
         let msg = ChannelMsgEncoder.prepare_shrink(remaining_workers,
@@ -1097,8 +1152,8 @@ actor RouterRegistry is FinishedAckRequester
         Fail()
       end
       _prepare_shrink(remaining_workers, leaving_workers)
-      _request_finished_acks(LeavingMigrationAction(_auth, _worker_name,
-        remaining_workers, leaving_workers, _connections))
+      _initiate_request_finished_acks(LeavingMigrationAction(_auth,
+        _worker_name, remaining_workers, leaving_workers, _connections))
     end
 
   be prepare_shrink(remaining_workers: Array[String] val,
@@ -1428,6 +1483,31 @@ class AckFinishedAction is CustomAction
     try
       let finished_ack_msg =
         ChannelMsgEncoder.finished_ack(_worker, _request_id, _auth)?
+      _connections.send_control(_originating_worker, finished_ack_msg)
+    else
+      Fail()
+    end
+
+class AckFinishedCompleteAction is CustomAction
+  let _auth: AmbientAuth
+  let _worker: String
+  let _originating_worker: String
+  let _request_id: RequestId
+  let _connections: Connections
+
+  new iso create(auth: AmbientAuth, worker: String, originating_worker: String,
+    request_id: RequestId, connections: Connections)
+  =>
+    _auth = auth
+    _worker = worker
+    _originating_worker = originating_worker
+    _request_id = request_id
+    _connections = connections
+
+  fun apply() =>
+    try
+      let finished_ack_msg =
+        ChannelMsgEncoder.finished_complete_ack(_worker, _request_id, _auth)?
       _connections.send_control(_originating_worker, finished_ack_msg)
     else
       Fail()

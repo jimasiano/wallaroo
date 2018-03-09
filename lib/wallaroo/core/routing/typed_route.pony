@@ -148,11 +148,14 @@ class TypedRoute[In: Any val] is Route
     // @printf[I32]("!@ request_finished_ack TYPED ROUTE\n".cstring())
     _consumer.request_finished_ack(request_id, requester_id, requester)
 
-  fun ref request_finished_ack_complete(requester_id: StepId,
+  fun ref request_finished_complete_ack(
+    complete_request_id: FinishedAckCompleteId,
+    request_id: RequestId, requester_id: StepId,
     requester: FinishedAckRequester)
   =>
-    // @printf[I32]("!@ request_finished_ack_complete TYPED ROUTE\n".cstring())
-    _consumer.request_finished_ack_complete(requester_id, requester)
+    // @printf[I32]("!@ request_finished_complete_ack TYPED ROUTE\n".cstring())
+    _consumer.request_finished_complete_ack(complete_request_id, request_id,
+      requester_id, requester)
 
   fun ref receive_finished_ack(request_id: RequestId) =>
     _step.receive_finished_ack(request_id)

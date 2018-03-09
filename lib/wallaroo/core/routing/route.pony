@@ -46,7 +46,9 @@ trait Route
   fun ref report_status(code: ReportStatusCode)
   fun ref request_finished_ack(request_id: RequestId, requester_id: StepId,
     requester: FinishedAckRequester)
-  fun ref request_finished_ack_complete(requester_id: StepId,
+  fun ref request_finished_complete_ack(
+    complete_request_id: FinishedAckCompleteId,
+    request_id: RequestId, requester_id: StepId,
     requester: FinishedAckRequester)
   fun ref receive_finished_ack(request_id: RequestId)
 
@@ -123,12 +125,14 @@ class EmptyRoute is Route
     Fail()
 
   fun ref request_finished_ack(request_id: RequestId, requester_id: StepId,
-    producer: FinishedAckRequester)
+    requester: FinishedAckRequester)
   =>
     Fail()
 
-  fun ref request_finished_ack_complete(requester_id: StepId,
-    producer: FinishedAckRequester)
+  fun ref request_finished_complete_ack(
+    complete_request_id: FinishedAckCompleteId,
+    request_id: RequestId, requester_id: StepId,
+    requester: FinishedAckRequester)
   =>
     Fail()
 
