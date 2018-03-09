@@ -312,10 +312,11 @@ actor TCPSink is Consumer
     // @printf[I32]("!@ request_finished_ack TCPSink, upstream_request_id: %s, requester_id: %s\n".cstring(), request_id.string().cstring(), requester_id.string().cstring())
     requester.receive_finished_ack(request_id)
 
-  be request_finished_ack_complete(requester_id: StepId,
+  be request_finished_complete_ack(complete_request_id: FinishedAckCompleteId,
+    request_id: RequestId, requester_id: StepId,
     requester: FinishedAckRequester)
   =>
-    // @printf[I32]("!@ request_finished_ack_complete TCPSink\n".cstring())
+    // @printf[I32]("!@ request_finished_complete_ack TCPSink\n".cstring())
     None
 
   be try_finish_request_early(requester_id: StepId) =>

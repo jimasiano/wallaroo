@@ -483,16 +483,22 @@ actor OutgoingBoundary is Consumer
       upstream_requester.receive_finished_ack(upstream_request_id)
     end
 
-  be request_finished_ack_complete(requester_id: StepId,
-    producer: FinishedAckRequester)
+  be request_finished_complete_ack(complete_request_id: FinishedAckCompleteId,
+    request_id: RequestId, requester_id: StepId,
+    requester: FinishedAckRequester)
   =>
-    // @printf[I32]("!@ request_finished_ack_complete BOUNDARY\n".cstring())
-    _finished_ack_waiter.clear()
-    try
-      _writev(ChannelMsgEncoder.request_finished_ack_complete(_worker_name,
-        requester_id, _auth)?)
-    else
-      Fail()
+    // @printf[I32]("!@ request_finished_complete_ack BOUNDARY\n".cstring())
+    if _finished_ack_waiter.request_finished_complete_ack(complete_request_id,
+      request_id, requester_id, requester)
+    then
+      try
+        let new_request_id =
+          _finished_ack_waiter.add_consumer_complete_request()
+        _writev(ChannelMsgEncoder.request_finished_complete_ack(_worker_name,
+          complete_request_id, new_request_id, _step_id, _auth)?)
+      else
+        Fail()
+      end
     end
 
     //!@
@@ -504,6 +510,9 @@ actor OutgoingBoundary is Consumer
   be receive_finished_ack(request_id: RequestId) =>
     // @printf[I32]("!@ receive_finished_ack BOUNDARY %s\n".cstring(), _step_id.string().cstring())
     _finished_ack_waiter.unmark_consumer_request(request_id)
+
+  be receive_finished_complete_ack(request_id: RequestId) =>
+    _finished_ack_waiter.unmark_consumer_complete_request(request_id)
 
   //
   // TCP
@@ -1064,6 +1073,12 @@ class BoundaryNotify is WallarooOutgoingNetworkActorNotify
             fa.sender.cstring())
         end
         _outgoing_boundary.receive_finished_ack(fa.request_id)
+      | let fa: FinishedCompleteAckMsg =>
+        ifdef "trace" then
+          @printf[I32]("Received FinishedCompleteAckMsg from %s\n".cstring(),
+            fa.sender.cstring())
+        end
+        _outgoing_boundary.receive_finished_complete_ack(fa.request_id)
       else
         @printf[I32](("Unknown Wallaroo data message type received at " +
           "OutgoingBoundary.\n").cstring())

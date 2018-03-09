@@ -324,16 +324,22 @@ primitive ChannelMsgEncoder
   =>
     _encode(RequestFinishedAckMsg(sender, request_id, requester_id), auth)?
 
-  fun request_finished_ack_complete(sender: String, requester_id: StepId,
-    auth: AmbientAuth): Array[ByteSeq] val ?
+  fun request_finished_complete_ack(sender: String,
+    complete_request_id: FinishedAckCompleteId, request_id: RequestId,
+    requester_id: StepId, auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    _encode(RequestFinishedAckCompleteMsg(sender, requester_id),
-      auth)?
+    _encode(RequestFinishedAckCompleteMsg(sender, complete_request_id,
+      request_id, requester_id), auth)?
 
   fun finished_ack(sender: String, request_id: RequestId, auth: AmbientAuth):
     Array[ByteSeq] val ?
   =>
     _encode(FinishedAckMsg(sender, request_id), auth)?
+
+  fun finished_complete_ack(sender: String, request_id: RequestId,
+    auth: AmbientAuth): Array[ByteSeq] val ?
+  =>
+    _encode(FinishedCompleteAckMsg(sender, request_id), auth)?
 
 primitive ChannelMsgDecoder
   fun apply(data: Array[U8] val, auth: AmbientAuth): ChannelMsg =>
@@ -812,6 +818,14 @@ class val FinishedAckMsg is ChannelMsg
     sender = sender'
     request_id = request_id'
 
+class val FinishedCompleteAckMsg is ChannelMsg
+  let sender: String
+  let request_id: RequestId
+
+  new val create(sender': String, request_id': RequestId) =>
+    sender = sender'
+    request_id = request_id'
+
 class val RequestFinishedAckMsg is ChannelMsg
   let sender: String
   let request_id: RequestId
@@ -826,11 +840,16 @@ class val RequestFinishedAckMsg is ChannelMsg
 
 class val RequestFinishedAckCompleteMsg is ChannelMsg
   let sender: String
+  let complete_request_id: FinishedAckCompleteId
+  let request_id: RequestId
   let requester_id: StepId
 
-  new val create(sender': String, requester_id': StepId)
+  new val create(sender': String, complete_request_id': FinishedAckCompleteId,
+    request_id': RequestId, requester_id': StepId)
   =>
     sender = sender'
+    complete_request_id = complete_request_id'
+    request_id = request_id'
     requester_id = requester_id'
 
 //!@
