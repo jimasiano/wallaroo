@@ -317,7 +317,7 @@ actor TCPSink is Consumer
     requester: FinishedAckRequester)
   =>
     // @printf[I32]("!@ request_finished_complete_ack TCPSink\n".cstring())
-    None
+    requester.receive_finished_complete_ack(request_id)
 
   be try_finish_request_early(requester_id: StepId) =>
     None

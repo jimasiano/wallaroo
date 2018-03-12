@@ -258,7 +258,7 @@ actor KafkaSink is (Consumer & KafkaClientManager & KafkaProducer)
     request_id: RequestId, requester_id: StepId,
     requester: FinishedAckRequester)
   =>
-    None
+    requester.receive_finished_complete_ack(request_id)
 
   be try_finish_request_early(requester_id: StepId) =>
     None
