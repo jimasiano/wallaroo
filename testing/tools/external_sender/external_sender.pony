@@ -91,6 +91,11 @@ actor Main
         | "source-ids-query" =>
           await_response = true
           ExternalMsgEncoder.source_ids_query()
+        //!@
+        | "finished-ack-status" =>
+          ExternalMsgEncoder.report_status("finished-acks-status")
+        | "boundary-count-status" =>
+          ExternalMsgEncoder.report_status("boundary-count-status")
         else // default to print
           ExternalMsgEncoder.print_message(message)
         end

@@ -169,6 +169,27 @@ class FinishedAckWaiter
     _upstream_request_ids.clear()
     _upstream_requesters.clear()
 
+  //!@
+  fun report_status(code: ReportStatusCode) =>
+    match code
+    | FinishedAcksStatus =>
+      var pending: USize = 0
+      var requester_id: StepId = 0
+      for (r_id, pa) in _pending_acks.pairs() do
+        if pa.size() > 0 then
+          requester_id = r_id
+          pending = pending + 1
+        end
+      end
+      @printf[I32]("!@ waiting at %s on %s pending ack groups, for requester ids:\n".cstring(), _step_id.string().cstring(), pending.string().cstring())
+      if pending == 1 then
+        @printf[I32]("!@ %s waiting for one for requester id %s\n".cstring(), _step_id.string().cstring(), requester_id.string().cstring())
+      end
+      // for p in _pending_acks.keys() do
+      //   @printf[I32]("!@ %s (from %s)\n".cstring(), p.string().cstring(), _step_id.string().cstring())
+      // end
+    end
+
   fun ref _check_send_run(requester_id: StepId) =>
     try
       @printf[I32]("!@ _pending_acks size: %s for requester_id %s (reported from %s). Listing pending acks:\n".cstring(), _pending_acks(requester_id)?.size().string().cstring(), requester_id.string().cstring(), _step_id.string().cstring())
