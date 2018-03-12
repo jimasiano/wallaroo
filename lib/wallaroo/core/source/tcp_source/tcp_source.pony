@@ -51,7 +51,7 @@ use @pony_asio_event_resubscribe_read[None](event: AsioEventID)
 use @pony_asio_event_resubscribe_write[None](event: AsioEventID)
 use @pony_asio_event_destroy[None](event: AsioEventID)
 
-actor TCPSource is (Producer & FinishedAckResponder)
+actor TCPSource is (Producer & FinishedAckResponder & StatusReporter)
   """
   # TCPSource
 
@@ -97,8 +97,9 @@ actor TCPSource is (Producer & FinishedAckResponder)
   var _seq_id: SeqId = 1 // 0 is reserved for "not seen yet"
   var _finished_ack_waiter: FinishedAckWaiter
 
-  new _accept(listen: TCPSourceListener, notify: TCPSourceNotify iso,
-    routes: Array[Consumer] val, route_builder: RouteBuilder,
+  new _accept(source_id: StepId, listen: TCPSourceListener,
+    notify: TCPSourceNotify iso, routes: Array[Consumer] val,
+    route_builder: RouteBuilder,
     outgoing_boundary_builders: Map[String, OutgoingBoundaryBuilder] val,
     layout_initializer: LayoutInitializer,
     fd: U32, init_size: USize = 64, max_size: USize = 16384,
@@ -107,7 +108,7 @@ actor TCPSource is (Producer & FinishedAckResponder)
     """
     A new connection accepted on a server.
     """
-    _source_id = _step_id_gen()
+    _source_id = source_id
     _finished_ack_waiter = FinishedAckWaiter(_source_id)
     _metrics_reporter = consume metrics_reporter
     _listen = listen
@@ -283,6 +284,25 @@ actor TCPSource is (Producer & FinishedAckResponder)
 
   fun ref current_sequence_id(): SeqId =>
     _seq_id
+
+  //!@
+  be report_status(code: ReportStatusCode) =>
+    @printf[I32]("!@ Source finished_ack_status\n".cstring())
+    match code
+    | FinishedAcksStatus =>
+      _finished_ack_waiter.report_status(code)
+    | BoundaryCountStatus =>
+      var b_count: USize = 0
+      for r in _routes.values() do
+        match r
+        | let br: BoundaryRoute => b_count = b_count + 1
+        end
+      end
+      @printf[I32]("!@ Source %s has %s boundaries.\n".cstring(), _source_id.string().cstring(), b_count.string().cstring())
+    end
+    for route in _routes.values() do
+      route.report_status(code)
+    end
 
   be request_finished_ack(upstream_request_id: RequestId, requester_id: StepId,
     requester: FinishedAckRequester)

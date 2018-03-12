@@ -142,6 +142,14 @@ actor DataReceiver is Producer
     """This is not a real Producer, so it doesn't write any State"""
     None
 
+  //!@
+  be report_status(code: ReportStatusCode) =>
+    match code
+    | FinishedAcksStatus =>
+      _finished_ack_waiter.report_status(code)
+    end
+    _router.report_status(code)
+
   be request_finished_ack(upstream_request_id: RequestId, requester_id: StepId)
   =>
     @printf[I32]("!@ request_finished_ack DATA RECEIVER upstream_request_id: %s, requester_id: %s\n".cstring(), upstream_request_id.string().cstring(), requester_id.string().cstring())

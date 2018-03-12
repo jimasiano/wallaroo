@@ -131,6 +131,8 @@ actor Step is (Producer & Consumer)
       end
     end
 
+    // @printf[I32]("!@ step application_created routes: %s\n".cstring(), _routes.size().string().cstring())
+
     _omni_router = omni_router
 
     _initialized = true
@@ -189,6 +191,8 @@ actor Step is (Producer & Consumer)
       end
     end
 
+    // @printf[I32]("!@ step register_routes routes: %s\n".cstring(), _routes.size().string().cstring())
+
   be update_router(router: Router) =>
     _update_router(router)
 
@@ -210,6 +214,8 @@ actor Step is (Producer & Consumer)
     else
       Fail()
     end
+
+    // @printf[I32]("!@ step _update_router routes: %s\n".cstring(), _routes.size().string().cstring())
 
   be update_omni_router(omni_router: OmniRouter) =>
     let old_router = _omni_router
@@ -235,6 +241,7 @@ actor Step is (Producer & Consumer)
         _routes(boundary) = new_route
       end
     end
+    // @printf[I32]("!@ step add_boundaries routes: %s\n".cstring(), _routes.size().string().cstring())
 
   be remove_boundary(worker: String) =>
     if _outgoing_boundaries.contains(worker) then
@@ -252,6 +259,8 @@ actor Step is (Producer & Consumer)
       None
     end
 
+    // @printf[I32]("!@ step remove_boundary routes: %s\n".cstring(), _routes.size().string().cstring())
+
   be remove_route_for(step: Consumer) =>
     try
       _routes.remove(step)?
@@ -259,6 +268,8 @@ actor Step is (Producer & Consumer)
       @printf[I32](("Tried to remove route for step but there was no route " +
         "to remove\n").cstring())
     end
+
+    // @printf[I32]("!@ step remove_route_for routes: %s\n".cstring(), _routes.size().string().cstring())
 
   be run[D: Any val](metric_name: String, pipeline_time_spent: U64, data: D,
     i_producer: Producer, msg_uid: MsgId, frac_ids: FractionalMessageId,
@@ -421,6 +432,24 @@ actor Step is (Producer & Consumer)
     //   Invariant(_upstreams.contains(producer))
     // end
     _upstreams.unset(producer)
+
+  //!@
+  be report_status(code: ReportStatusCode) =>
+    match code
+    | FinishedAcksStatus =>
+      _finished_ack_waiter.report_status(code)
+    | BoundaryCountStatus =>
+      var b_count: USize = 0
+      for r in _routes.values() do
+        match r
+        | let br: BoundaryRoute => b_count = b_count + 1
+        end
+      end
+      @printf[I32]("!@ Step %s has %s boundaries.\n".cstring(), _id.string().cstring(), b_count.string().cstring())
+    end
+    for r in _routes.values() do
+      r.report_status(code)
+    end
 
   be request_finished_ack(upstream_request_id: RequestId, requester_id: StepId,
     requester: FinishedAckRequester)
