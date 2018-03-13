@@ -146,8 +146,9 @@ actor DataReceiver is Producer
   =>
     // @printf[I32]("!@ request_finished_ack DATA RECEIVER upstream_request_id: %s, requester_id: %s\n".cstring(), upstream_request_id.string().cstring(), requester_id.string().cstring())
     if not _finished_ack_waiter.already_added_request(requester_id) then
-      _finished_ack_waiter.add_new_request(requester_id, upstream_request_id
-        where custom_action = _WriteFinishedAck(this, upstream_request_id))
+      _finished_ack_waiter.add_new_request(requester_id, upstream_request_id,
+        EmptyFinishedAckRequester, _WriteFinishedAck(this,
+          upstream_request_id))
       _router.request_finished_ack(requester_id, this, _finished_ack_waiter)
     else
       write_finished_ack(upstream_request_id)
@@ -155,6 +156,7 @@ actor DataReceiver is Producer
 
   be request_finished_ack_complete(requester_id: StepId) =>
     // @printf[I32]("!@ request_finished_ack_complete DATA RECEIVER\n".cstring())
+    _finished_ack_waiter.clear()
     _router.request_finished_ack_complete(requester_id, this)
 
   be try_finish_request_early(requester_id: StepId) =>

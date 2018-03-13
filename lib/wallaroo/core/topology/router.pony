@@ -884,7 +884,7 @@ class val DataRouter is Equatable[DataRouter]
   fun request_finished_ack(requester_id: StepId, requester: DataReceiver,
     finished_ack_waiter: FinishedAckWaiter)
   =>
-    @printf[I32]("!@ request_finished_ack DataRouter: %s\n".cstring(), requester_id.string().cstring())
+    // @printf[I32]("!@ request_finished_ack DataRouter: %s\n".cstring(), requester_id.string().cstring())
     ifdef "trace" then
       @printf[I32]("Finished ack requested at DataRouter\n".cstring())
     end

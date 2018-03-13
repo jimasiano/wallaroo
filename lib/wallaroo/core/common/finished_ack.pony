@@ -45,6 +45,13 @@ actor InitialFinishedAckRequester is FinishedAckRequester
   be try_finish_request_early(requester_id: StepId) =>
     None
 
+actor EmptyFinishedAckRequester is FinishedAckRequester
+  be receive_finished_ack(request_id: RequestId) =>
+    None
+
+  be try_finish_request_early(requester_id: StepId) =>
+    None
+
 class FinishedAckWaiter
   // This will be 0 for data receivers, router registry, and boundaries
   let _step_id: StepId
@@ -157,6 +164,11 @@ class FinishedAckWaiter
     // @printf[I32]("!@ try_finish_request_early\n".cstring())
     _check_send_run(requester_id)
 
+  fun ref clear() =>
+    _pending_acks.clear()
+    _upstream_request_ids.clear()
+    _upstream_requesters.clear()
+
   fun ref _check_send_run(requester_id: StepId) =>
     try
       // @printf[I32]("!@ _pending_acks size: %s for requester_id %s (reported from %s). Listing pending acks:\n".cstring(), _pending_acks(requester_id)?.size().string().cstring(), requester_id.string().cstring(), _step_id.string().cstring())
@@ -172,10 +184,11 @@ class FinishedAckWaiter
           _custom_actions.remove(requester_id)?
         end
 
-        // Clean up
-        _pending_acks.remove(requester_id)?
-        _upstream_request_ids.remove(requester_id)?
-        _upstream_requesters.remove(requester_id)?
+        //!@
+        // // Clean up
+        // _pending_acks.remove(requester_id)?
+        // _upstream_request_ids.remove(requester_id)?
+        // _upstream_requesters.remove(requester_id)?
 
       end
     else

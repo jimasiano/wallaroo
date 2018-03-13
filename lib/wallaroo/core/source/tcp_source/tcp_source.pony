@@ -307,6 +307,7 @@ actor TCPSource is (Producer & FinishedAckResponder)
     requester: FinishedAckRequester)
   =>
     // @printf[I32]("!@ request_finished_ack_complete TCPSource\n".cstring())
+    _finished_ack_waiter.clear()
     for route in _routes.values() do
       // @printf[I32]("!@ ---*****---- Complete consumer request at Source\n".cstring())
       route.request_finished_ack_complete(_source_id, this)

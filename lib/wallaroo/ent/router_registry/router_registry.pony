@@ -701,6 +701,7 @@ actor RouterRegistry is FinishedAckRequester
     """
     Migration is complete and we're ready to resume message processing
     """
+    _finished_ack_waiter.clear()
     for source in _sources.values() do
       source.request_finished_ack_complete(_id, this)
     end
@@ -1072,6 +1073,7 @@ actor RouterRegistry is FinishedAckRequester
     This should only be called on a worker designated to leave the cluster
     as part of shrink to fit.
     """
+    @printf[I32]("Beginning process of leaving cluster.\n".cstring())
     _leaving_in_process = true
     if _partition_routers.size() == 0 then
       //no steps have been migrated
@@ -1299,6 +1301,12 @@ class LeavingMigrationAction is CustomAction
 
   fun ref apply() =>
     try
+      @printf[I32]("!@ LeavingMigrationAction... Leaving:\n".cstring())
+      //!@
+      for w in _leaving_workers.values() do
+        @printf[I32]("!@ -!- %s\n".cstring(), w.cstring())
+      end
+
       let msg = ChannelMsgEncoder.begin_leaving_migration(_remaining_workers,
         _leaving_workers, _auth)?
       for w in _leaving_workers.values() do

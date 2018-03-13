@@ -243,6 +243,7 @@ actor KafkaSource[In: Any val] is (Producer & FinishedAckResponder &
     requester: FinishedAckRequester)
   =>
     // @printf[I32]("!@ request_finished_ack_complete KafkaSource\n".cstring())
+    _finished_ack_waiter.clear()
     for route in _routes.values() do
       route.request_finished_ack_complete(_source_id, this)
     end
