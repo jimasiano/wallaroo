@@ -452,8 +452,8 @@ actor OutgoingBoundary is Consumer
     // @printf[I32]("!@ request_finished_ack BOUNDARY %s, requester_id: %s, upstream_request_id: %s\n".cstring(), _step_id.string().cstring(), requester_id.string().cstring(), upstream_request_id.string().cstring())
 
     // !@
-    // if not _finished_ack_waiter.already_added_request(requester_id) then
-    if not _finished_ack_waiter.pending_request() then
+    // if not _finished_ack_waiter.pending_request() then
+    if not _finished_ack_waiter.already_added_request(requester_id) then
       try
         _finished_ack_waiter.add_new_request(requester_id, upstream_request_id,
           upstream_requester)
@@ -1040,8 +1040,10 @@ class BoundaryNotify is WallarooOutgoingNetworkActorNotify
         end
         conn.receive_ack(aw.seq_id)
       | let fa: FinishedAckMsg =>
-        @printf[I32]("Received FinishedAckMsg from %s\n".cstring(),
-          fa.sender.cstring())
+        ifdef "trace" then
+          @printf[I32]("Received FinishedAckMsg from %s\n".cstring(),
+            fa.sender.cstring())
+        end
         _outgoing_boundary.receive_finished_ack(fa.request_id)
       else
         @printf[I32](("Unknown Wallaroo data message type received at " +
