@@ -55,7 +55,7 @@ actor RouterRegistry is FinishedAckRequester
   var _application_ready_to_work: Bool = false
 
   // !@ remove 1
-  let _finished_ack_waiter: FinishedAckWaiter = FinishedAckWaiter(1)
+  let _finished_ack_waiter: FinishedAckWaiter
 
   ////////////////
   // Subscribers
@@ -137,6 +137,9 @@ actor RouterRegistry is FinishedAckRequester
     _stop_the_world_pause = stop_the_world_pause
     _connections.register_disposable(this)
     _id = (digestof this).u128()
+    _finished_ack_waiter = FinishedAckWaiter(_id)
+
+    @printf[I32]("!@ RouterRegistry id: %s\n".cstring(), _id.string().cstring())
 
   fun _worker_count(): USize =>
     _outgoing_boundaries.size() + 1
@@ -652,7 +655,7 @@ actor RouterRegistry is FinishedAckRequester
     """
     _connections.request_cluster_unmute()
     @printf[I32]("!@ rotation_complete _resume_the_world\n".cstring())
-    _resume_the_world()
+    _resume_the_world(_worker_name)
     _unmute_request(_worker_name)
 
   fun ref _stop_the_world_for_log_rotation() =>
@@ -739,21 +742,30 @@ actor RouterRegistry is FinishedAckRequester
     _mute_request(_worker_name)
     _connections.stop_the_world(new_workers)
 
-  fun ref _resume_the_world() =>
-    """
-    Migration is complete and we're ready to resume message processing
-    """
-    @printf[I32]("!@ _resume_the_world COMPLETE\n".cstring())
+  fun ref _try_resume_the_world() =>
+    @printf[I32]("!@ _try_resume_the_world\n".cstring())
     if _initiated_stop_the_world then
       let complete_request_id = _finished_ack_waiter
-        .initiate_complete_request()
+        .initiate_complete_request(ResumeTheWorldAction(this))
       _request_finished_complete_acks(complete_request_id)
       _connections.request_finished_acks_complete(complete_request_id, _id,
         this)
-      _initiated_stop_the_world = false
     end
-    _resume_all_local()
+
+  fun ref initiate_resume_the_world() =>
+    _resume_all_remote()
+    _resume_the_world(_worker_name)
+
+  be resume_the_world(initiator: String) =>
+    """
+    Stop the world is complete and we're ready to resume message processing
+    """
+    _resume_the_world(initiator)
+
+  fun ref _resume_the_world(initiator: String) =>
+    _initiated_stop_the_world = false
     _stop_the_world_in_process = false
+    _resume_all_local()
     @printf[I32]("~~~Resuming message processing.~~~\n".cstring())
 
   be begin_migration(target_workers: Array[String] val) =>
@@ -765,7 +777,7 @@ actor RouterRegistry is FinishedAckRequester
       //no steps have been migrated
       @printf[I32](("Resuming message processing immediately. No partitions " +
         "to migrate.\n").cstring())
-      _resume_the_world()
+      _resume_the_world(_worker_name)
     end
     for w in target_workers.values() do
       @printf[I32]("Migrating partitions to %s\n".cstring(), w.cstring())
@@ -783,7 +795,7 @@ actor RouterRegistry is FinishedAckRequester
       //no steps have been migrated
       @printf[I32](("Resuming message processing immediately. No partitions " +
         "to migrate.\n").cstring())
-      _resume_the_world()
+      _resume_the_world(_worker_name)
     end
 
     let target_workers: Array[(String, OutgoingBoundary)] val =
@@ -866,8 +878,8 @@ actor RouterRegistry is FinishedAckRequester
         if (_migration_target_ack_list.size() == 0) and
           (_leaving_workers.size() == 0)
         then
-          @printf[I32]("!@ _unmute_request _resume_the_world\n".cstring())
-          _resume_the_world()
+          @printf[I32]("!@ _unmute_request _try_resume_the_world\n".cstring())
+          _try_resume_the_world()
         else
           // We should only unmute ourselves once _migration_target_ack_list is
           // empty for grow and _leaving_workers is empty for shrink
@@ -986,15 +998,19 @@ actor RouterRegistry is FinishedAckRequester
   fun ref _request_finished_complete_acks(complete_request_id:
     FinishedAckCompleteId)
   =>
-    // Request for sources
-    for source in _sources.values() do
-      let request_id = _finished_ack_waiter.add_consumer_complete_request()
-      source.request_finished_complete_ack(complete_request_id,
-        request_id, _id, this)
+    if _has_local_target() then
+      // Request for sources
+      for source in _sources.values() do
+        let request_id = _finished_ack_waiter.add_consumer_complete_request()
+        source.request_finished_complete_ack(complete_request_id,
+          request_id, _id, this)
+      end
+      // Request for local steps and sinks
+      _data_router.request_finished_complete_ack(complete_request_id,
+        _id, this, _finished_ack_waiter)
+    else
+      _finished_ack_waiter.try_finished_complete_request_early()
     end
-    // Request for local steps and sinks
-    _data_router.request_finished_complete_ack(complete_request_id,
-      _id, this, _finished_ack_waiter)
 
   fun _has_local_target(): Bool =>
     """
@@ -1015,8 +1031,8 @@ actor RouterRegistry is FinishedAckRequester
   be try_finish_request_early(requester_id: StepId) =>
     _finished_ack_waiter.try_finish_request_early(requester_id)
 
-  be try_finish_complete_request_early(requester_id: StepId) =>
-    _finished_ack_waiter.try_finish_complete_request_early(requester_id)
+  be try_finished_complete_request_early() =>
+    _finished_ack_waiter.try_finished_complete_request_early()
 
   be receive_finished_ack(request_id: RequestId) =>
     // @printf[I32]("!@ receive_finished_ack REGISTRY for %s\n".cstring(), request_id.string().cstring())
@@ -1045,6 +1061,14 @@ actor RouterRegistry is FinishedAckRequester
     end
     for source in _sources.values() do
       source.unmute(_dummy_consumer)
+    end
+
+  fun _resume_all_remote() =>
+    try
+      let msg = ChannelMsgEncoder.resume_the_world(_worker_name, _auth)?
+      _connections.send_control_to_cluster(msg)
+    else
+      Fail()
     end
 
   fun ref try_to_resume_processing_immediately() =>
@@ -1512,6 +1536,15 @@ class AckFinishedCompleteAction is CustomAction
     else
       Fail()
     end
+
+class ResumeTheWorldAction is CustomAction
+  let _registry: RouterRegistry ref
+
+  new create(registry: RouterRegistry ref) =>
+    _registry = registry
+
+  fun ref apply() =>
+    _registry.initiate_resume_the_world()
 
 class LogRotationAction is CustomAction
   let _registry: RouterRegistry

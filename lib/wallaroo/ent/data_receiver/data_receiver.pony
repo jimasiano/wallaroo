@@ -409,5 +409,5 @@ class _WriteFinishedCompleteAck is CustomAction
     _request_id = request_id
 
   fun ref apply() =>
-    // @printf[I32]("!@ _WriteFinishedAck DataReceiver\n".cstring())
+    @printf[I32]("!@ _WriteFinishedCompleteAck DataReceiver\n".cstring())
     _data_receiver.write_finished_complete_ack(_request_id)
