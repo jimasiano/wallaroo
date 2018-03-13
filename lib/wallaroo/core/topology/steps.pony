@@ -238,6 +238,15 @@ actor Step is (Producer & Consumer)
       Fail()
     end
 
+  be remove_route_to_consumer(c: Consumer) =>
+    if _routes.contains(c) then
+      try
+        _routes.remove(c)?
+      else
+        Fail()
+      end
+    end
+
     // @printf[I32]("!@ step _update_router routes: %s\n".cstring(), _routes.size().string().cstring())
 
   be update_omni_router(omni_router: OmniRouter) =>
@@ -503,6 +512,7 @@ actor Step is (Producer & Consumer)
     request_id: RequestId, requester_id: StepId,
     requester: FinishedAckRequester)
   =>
+    // @printf[I32]("!@ ** STEP rcvd Request id: %s, Step Id: %s\n".cstring(), request_id.string().cstring(), _id.string().cstring())
      // @printf[I32]("!@ request_finished_complete_ack STEP\n".cstring())
     if _finished_ack_waiter.request_finished_complete_ack(complete_request_id,
       request_id, requester_id, requester)
@@ -566,6 +576,9 @@ actor Step is (Producer & Consumer)
     end
 
   be send_state_to_neighbour(neighbour: Step) =>
+    //!@
+    _finished_ack_waiter.migrated()
+
     ifdef "autoscale" then
       match _step_message_processor
       | let nmp: NormalStepMessageProcessor =>
@@ -581,6 +594,9 @@ actor Step is (Producer & Consumer)
   be send_state[K: (Hashable val & Equatable[K] val)](
     boundary: OutgoingBoundary, state_name: String, key: K)
   =>
+    //!@
+    _finished_ack_waiter.migrated()
+
     ifdef "autoscale" then
       match _step_message_processor
       | let nmp: NormalStepMessageProcessor =>

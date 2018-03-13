@@ -112,8 +112,18 @@ class FinishedAckWaiter
     _upstream_complete_request_ids.create()
   var _custom_complete_action: (CustomAction | None) = None
 
+  // If this was part of a step that was migrated, then it should no longer
+  // receive requests. This allows us to check that invariant.
+  var _has_migrated: Bool = false
+
   new create(id: StepId = 0) =>
     _step_id = id
+
+  fun ref migrated() =>
+    """
+    Indicates that an encapsulating step has been migrated to another worker.
+    """
+    _has_migrated = true
 
   fun ref initiate_request(initiator_id: StepId,
     custom_action: (CustomAction | None) = None)
@@ -247,10 +257,40 @@ class FinishedAckWaiter
     """
     Return true if this is the first time we've seen this complete_request_id.
     """
+    ifdef debug then
+      Invariant(not _has_migrated)
+    end
+
     let initial_requester_id = complete_request_id.initial_requester_id
     let seq_id = complete_request_id.seq_id
+
+    //!@
+    // if _upstream_complete_requesters.contains(requester_id) or _upstream_complete_request_ids.contains(requester_id) then
+    //   @printf[I32]("!@ Already saw requester_id: %s at node %s\n".cstring(), requester_id.string().cstring(), _step_id.string().cstring())
+    // end
+
+    //!@
+    ifdef debug then
+      // Since a node should only send a request to its downstreams once during
+      // a single request_finished_complete_ack phase, we should never see
+      // the same upstream requester id twice in the same phase.
+      Invariant(not _upstream_complete_requesters.contains(requester_id) and
+        not _upstream_complete_request_ids.contains(requester_id))
+    end
     _upstream_complete_requesters(requester_id) = requester
     _upstream_complete_request_ids(requester_id) = request_id
+    //!@
+    // if _upstream_complete_request_ids.contains(requester_id) then
+    //   try
+    //     _upstream_complete_request_ids(requester_id)?.push(request_id)
+    //   else
+    //     Fail()
+    //   end
+    // else
+    //   let r_ids = Array[RequestId]
+    //   r_ids.push(request_id)
+    //   _upstream_complete_request_ids(requester_id) = r_ids
+    // end
 
     match custom_action
     | let ca: CustomAction =>
@@ -266,7 +306,7 @@ class FinishedAckWaiter
     if _complete_request_ids.contains(initial_requester_id) then
       try
         let current = _complete_request_ids(initial_requester_id)?
-        @printf[I32]("!@ request_finished_complete_ack Current: %s, seq_id: %s reported from %s. Pending: %s, upstream_complete_requesters: %s, init: %s\n".cstring(), current.string().cstring(), seq_id.string().cstring(), _step_id.string().cstring(), _pending_complete_acks.size().string().cstring(), _upstream_complete_requesters.size().string().cstring(), initial_requester_id.string().cstring())
+        // @printf[I32]("!@ request_finished_complete_ack Current: %s, seq_id: %s reported from %s. Pending: %s, upstream_complete_requesters: %s, init: %s\n".cstring(), current.string().cstring(), seq_id.string().cstring(), _step_id.string().cstring(), _pending_complete_acks.size().string().cstring(), _upstream_complete_requesters.size().string().cstring(), initial_requester_id.string().cstring())
         if current < seq_id then
           ifdef debug then
             // We shouldn't be processing a new complete ack phase until
@@ -283,6 +323,21 @@ class FinishedAckWaiter
           // is one requester still waiting on our ack (which would prevent
           // an early termination of the algorithm).
           requester.receive_finished_complete_ack(request_id)
+          try
+            // Since we just acked this requester for this request_id, we need
+            // to remove it from our upstream records.
+            _upstream_complete_requesters.remove(requester_id)?
+            _upstream_complete_request_ids.remove(requester_id)?
+
+            //!@
+            // _upstream_complete_request_ids(requester_id)?.pop()?
+            // if _upstream_complete_request_ids(requester_id)?.size() == 0 then
+            //   _upstream_complete_request_ids.remove(requester_id)?
+            //   _upstream_complete_requesters.remove(requester_id)?
+            // end
+          else
+            Fail()
+          end
           false
         end
       else
@@ -290,7 +345,12 @@ class FinishedAckWaiter
         false
       end
     else
-        @printf[I32]("!@ request_finished_complete_ack Current: %s, seq_id: %s reported from %s. Pending: %s, upstream_complete_requesters: %s, init: %s\n".cstring(), USize(0).string().cstring(), seq_id.string().cstring(), _step_id.string().cstring(), _pending_complete_acks.size().string().cstring(), _upstream_complete_requesters.size().string().cstring(), initial_requester_id.string().cstring())
+        // @printf[I32]("!@ request_finished_complete_ack Current: %s, seq_id: %s reported from %s. Pending: %s, upstream_complete_requesters: %s, init: %s\n".cstring(), USize(0).string().cstring(), seq_id.string().cstring(), _step_id.string().cstring(), _pending_complete_acks.size().string().cstring(), _upstream_complete_requesters.size().string().cstring(), initial_requester_id.string().cstring())
+      ifdef debug then
+        // We shouldn't be processing a new complete ack phase until
+        // the last one is finished.
+        Invariant(_pending_complete_acks.size() == 0)
+      end
       _complete_request_ids(initial_requester_id) = seq_id
       _clear_finished_ack_data()
       true
@@ -310,7 +370,7 @@ class FinishedAckWaiter
 
   fun ref unmark_consumer_complete_request(request_id: RequestId) =>
     if _pending_complete_acks.size() > 0 then
-      @printf[I32]("!@ unmark_consumer_complete_request() with %s pending at %s\n".cstring(), _pending_complete_acks.size().string().cstring(), _step_id.string().cstring())
+      // @printf[I32]("!@ unmark_consumer_complete_request() with %s pending at %s\n".cstring(), _pending_complete_acks.size().string().cstring(), _step_id.string().cstring())
       _pending_complete_acks.unset(request_id)
       if _pending_complete_acks.size() == 0 then
         _complete_request_is_done()
@@ -322,20 +382,23 @@ class FinishedAckWaiter
     end
 
   fun ref try_finished_complete_request_early() =>
-    @printf[I32]("!@ try_finished_complete_request_early\n".cstring())
+    // @printf[I32]("!@ try_finished_complete_request_early\n".cstring())
     if _pending_complete_acks.size() == 0 then
       _complete_request_is_done()
     end
 
   fun ref _complete_request_is_done() =>
-    @printf[I32]("!@ ------ !!! _complete_request_is_done() at %s,  upstream_complete_requesters: %s!!! \n".cstring(), _step_id.string().cstring(), _upstream_complete_requesters.size().string().cstring())
-    for (requester_id, requester) in
-      _upstream_complete_requesters.pairs()
-    do
+    // @printf[I32]("!@ ------ !!! _complete_request_is_done() at %s,  upstream_complete_requesters: %s!!! \n".cstring(), _step_id.string().cstring(), _upstream_complete_requesters.size().string().cstring())
+    for (requester_id, requester) in _upstream_complete_requesters.pairs() do
       try
-        let upstream_request_id =
-          _upstream_complete_request_ids(requester_id)?
-        requester.receive_finished_complete_ack(upstream_request_id)
+        //!@
+        // for upstream_request_id in
+        //   _upstream_complete_request_ids(requester_id)?.values()
+        // do
+          let upstream_request_id =
+            _upstream_complete_request_ids(requester_id)?
+          requester.receive_finished_complete_ack(upstream_request_id)
+        // end
       else
         Fail()
       end
@@ -364,6 +427,7 @@ class FinishedAckWaiter
   //!@
   fun report_status(code: ReportStatusCode) =>
     match code
+    //!@
     | FinishedAcksStatus =>
       var pending: USize = 0
       var requester_id: StepId = 0
@@ -380,6 +444,12 @@ class FinishedAckWaiter
       // for p in _pending_acks.keys() do
       //   @printf[I32]("!@ %s (from %s)\n".cstring(), p.string().cstring(), _step_id.string().cstring())
       // end
+    //!@
+    | RequestsStatus =>
+      @printf[I32]("!@ *| Pending complete acks: %s\n".cstring(), _pending_complete_acks.size().string().cstring())
+      for pca in _pending_complete_acks.values() do
+        @printf[I32]("!@ *| -- %s\n".cstring(), pca.string().cstring())
+      end
     end
 
   fun ref _check_send_run(requester_id: StepId) =>

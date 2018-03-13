@@ -412,6 +412,9 @@ actor _TestProducer is Producer
   fun ref update_router(router: Router) =>
     None
 
+  be remove_route_to_consumer(c: Consumer) =>
+    None
+
   be request_ack() =>
     None
 
