@@ -302,20 +302,20 @@ actor TCPSink is Consumer
   be report_status(code: ReportStatusCode) =>
     None
 
-  be request_finished_ack(request_id: RequestId, requester_id: StepId,
-    requester: FinishedAckRequester)
+  be request_in_flight_ack(request_id: RequestId, requester_id: StepId,
+    requester: InFlightAckRequester)
   =>
-    // @printf[I32]("!@ request_finished_ack TCPSink, upstream_request_id: %s, requester_id: %s\n".cstring(), request_id.string().cstring(), requester_id.string().cstring())
-    requester.receive_finished_ack(request_id)
+    // @printf[I32]("!@ request_in_flight_ack TCPSink, upstream_request_id: %s, requester_id: %s\n".cstring(), request_id.string().cstring(), requester_id.string().cstring())
+    requester.receive_in_flight_ack(request_id)
 
-  be request_finished_complete_ack(complete_request_id: FinishedAckCompleteId,
+  be request_in_flight_resume_ack(in_flight_resume_ack_id: InFlightResumeAckId,
     request_id: RequestId, requester_id: StepId,
-    requester: FinishedAckRequester)
+    requester: InFlightAckRequester)
   =>
-    // @printf[I32]("!@ request_finished_complete_ack TCPSink\n".cstring())
-    requester.receive_finished_complete_ack(request_id)
+    // @printf[I32]("!@ request_in_flight_resume_ack TCPSink\n".cstring())
+    requester.receive_in_flight_resume_ack(request_id)
 
-  be try_finish_request_early(requester_id: StepId) =>
+  be try_finish_in_flight_request_early(requester_id: StepId) =>
     None
 
   //

@@ -280,7 +280,7 @@ actor Connections is Cluster
       Fail()
     end
 
-  be request_finished_acks(requester_id: StepId,
+  be request_in_flight_acks(requester_id: StepId,
     router_registry: RouterRegistry,
     exclusions: Array[String] val = recover Array[String] end)
   =>
@@ -296,10 +296,10 @@ actor Connections is Cluster
         then
           let next_request_id = id_gen()
           request_ids.push(next_request_id)
-          let finished_ack_request_msg =
-            ChannelMsgEncoder.request_finished_ack(_worker_name,
+          let in_flight_ack_request_msg =
+            ChannelMsgEncoder.request_in_flight_ack(_worker_name,
               next_request_id, requester_id, _auth)?
-          ch.writev(finished_ack_request_msg)
+          ch.writev(in_flight_ack_request_msg)
           sent_request_msg = true
         end
       end
@@ -309,10 +309,10 @@ actor Connections is Cluster
     if sent_request_msg then
       router_registry.add_connection_request_ids(consume request_ids)
     else
-      router_registry.try_finish_request_early(requester_id)
+      router_registry.try_finish_in_flight_request_early(requester_id)
     end
 
-  be request_finished_acks_complete(complete_request_id: FinishedAckCompleteId,
+  be request_in_flight_acks_complete(in_flight_resume_ack_id: InFlightResumeAckId,
     requester_id: StepId, router_registry: RouterRegistry,
     exclusions: Array[String] val = recover Array[String] end)
   =>
@@ -328,10 +328,10 @@ actor Connections is Cluster
         then
           let next_request_id = id_gen()
           request_ids.push(next_request_id)
-          let finished_complete_ack_request_msg =
-            ChannelMsgEncoder.request_finished_complete_ack(_worker_name,
-              complete_request_id, next_request_id, requester_id, _auth)?
-          ch.writev(finished_complete_ack_request_msg)
+          let in_flight_resume_ack_request_msg =
+            ChannelMsgEncoder.request_in_flight_resume_ack(_worker_name,
+              in_flight_resume_ack_id, next_request_id, requester_id, _auth)?
+          ch.writev(in_flight_resume_ack_request_msg)
           sent_request_msg = true
         end
       end
@@ -342,7 +342,7 @@ actor Connections is Cluster
       router_registry.add_connection_request_ids_for_complete(
         consume request_ids)
     else
-      router_registry.try_finished_complete_request_early()
+      router_registry.try_finish_resume_request_early()
     end
 
   be request_cluster_unmute() =>

@@ -355,20 +355,20 @@ class ControlChannelConnectNotifier is TCPConnectionNotify
         @printf[I32]("Control Ch: Received Unmute Request from %s\n".cstring(),
           m.originating_worker.cstring())
         _router_registry.remote_unmute_request(m.originating_worker)
-      | let m: RequestFinishedAckMsg =>
-        _router_registry.remote_request_finished_ack(m.sender,
+      | let m: RequestInFlightAckMsg =>
+        _router_registry.remote_request_in_flight_ack(m.sender,
           m.request_id, m.requester_id)
-      | let m: RequestFinishedAckCompleteMsg =>
-        @printf[I32]("!@ RequestFinishedAckCompleteMsg COMPLETE from %s\n".cstring(), m.sender.cstring())
-        _router_registry.remote_request_finished_complete_ack(m.sender,
-          m.complete_request_id, m.request_id, m.requester_id)
-      | let m: FinishedAckMsg =>
+      | let m: RequestInFlightResumeAckMsg =>
+        @printf[I32]("!@ RequestInFlightResumeAckMsg COMPLETE from %s\n".cstring(), m.sender.cstring())
+        _router_registry.remote_request_in_flight_resume_ack(m.sender,
+          m.in_flight_resume_ack_id, m.request_id, m.requester_id)
+      | let m: InFlightAckMsg =>
         @printf[I32]("!@ FINISHEDACKMSG\n".cstring())
         ifdef "trace" then
-          @printf[I32]("Received FinishedAckMsg from %s\n".cstring(),
+          @printf[I32]("Received InFlightAckMsg from %s\n".cstring(),
             m.sender.cstring())
         end
-        _router_registry.receive_finished_ack(m.request_id)
+        _router_registry.receive_in_flight_ack(m.request_id)
       | let m: FinishedCompleteAckMsg =>
         @printf[I32]("!@ FINISHEDCOMPLETEACKMSG\n".cstring())
         ifdef "trace" then
@@ -376,7 +376,7 @@ class ControlChannelConnectNotifier is TCPConnectionNotify
             m.sender.cstring())
         end
         @printf[I32]("!@ Received FinishedCompleteAckMsg at control channel from %s\n".cstring(), m.sender.cstring())
-        _router_registry.receive_finished_complete_ack(m.request_id)
+        _router_registry.receive_in_flight_resume_ack(m.request_id)
       | let m: ResumeTheWorldMsg =>
         ifdef "trace" then
           @printf[I32]("Received ResumeTheWorldMsg from %s\n".cstring(),

@@ -93,7 +93,7 @@ interface val SourceConfig[In: Any val]
     SourceBuilderBuilder
 
 interface tag Source is (DisposableActor & BoundaryUpdateable &
-  FinishedAckResponder & StatusReporter)
+  InFlightAckResponder & StatusReporter)
   be update_router(router: PartitionRouter)
   be remove_route_to_consumer(c: Consumer)
   be add_boundary_builders(

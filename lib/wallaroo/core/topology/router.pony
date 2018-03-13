@@ -860,44 +860,41 @@ class val DataRouter is Equatable[DataRouter]
       consumer.report_status(code)
     end
 
-  fun request_finished_ack(requester_id: StepId,
-    requester: FinishedAckRequester, finished_ack_waiter: FinishedAckWaiter):
+  fun request_in_flight_ack(requester_id: StepId,
+    requester: InFlightAckRequester, in_flight_ack_waiter: InFlightAckWaiter):
     Bool
   =>
     """
     Returns false if there were no data routes to request on.
     """
-    // @printf[I32]("!@ request_finished_ack DataRouter: %s\n".cstring(), requester_id.string().cstring())
+    // @printf[I32]("!@ request_in_flight_ack DataRouter: %s\n".cstring(), requester_id.string().cstring())
     ifdef "trace" then
       @printf[I32]("Finished ack requested at DataRouter\n".cstring())
     end
     if _data_routes.size() > 0 then
       for consumer in _data_routes.values() do
-        let request_id = finished_ack_waiter.add_consumer_request(
+        let request_id = in_flight_ack_waiter.add_consumer_request(
           requester_id)
-        consumer.request_finished_ack(request_id, requester_id, requester)
+        consumer.request_in_flight_ack(request_id, requester_id, requester)
       end
       true
     else
       false
     end
 
-    //!@ remove requests
-  fun request_finished_complete_ack(complete_request_id: FinishedAckCompleteId,
-    requester_id: StepId, requester: FinishedAckRequester,
-    finished_ack_waiter: FinishedAckWaiter, requests: Map[RequestId, String] =
-    Map[RequestId, String])
+  fun request_in_flight_resume_ack(
+    in_flight_resume_ack_id: InFlightResumeAckId,
+    requester_id: StepId, requester: InFlightAckRequester,
+    in_flight_ack_waiter: InFlightAckWaiter)
   =>
     if _data_routes.size() > 0 then
       for consumer in _data_routes.values() do
-        let request_id = finished_ack_waiter.add_consumer_complete_request()
-        //!@
-        requests(request_id) = "Consumer from DataRouter"
-        consumer.request_finished_complete_ack(complete_request_id, request_id,
-          requester_id, requester)
+        let request_id = in_flight_ack_waiter.add_consumer_resume_request()
+        consumer.request_in_flight_resume_ack(in_flight_resume_ack_id,
+          request_id, requester_id, requester)
       end
     else
-      finished_ack_waiter.try_finished_complete_request_early()
+      in_flight_ack_waiter.try_finish_resume_request_early()
     end
 
 trait val PartitionRouter is (Router & Equatable[PartitionRouter])

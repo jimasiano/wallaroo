@@ -318,24 +318,24 @@ primitive ChannelMsgEncoder
   =>
     _encode(ReportStatusMsg(code), auth)?
 
-  fun request_finished_ack(sender: String, request_id: RequestId,
+  fun request_in_flight_ack(sender: String, request_id: RequestId,
     requester_id: StepId, auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    _encode(RequestFinishedAckMsg(sender, request_id, requester_id), auth)?
+    _encode(RequestInFlightAckMsg(sender, request_id, requester_id), auth)?
 
-  fun request_finished_complete_ack(sender: String,
-    complete_request_id: FinishedAckCompleteId, request_id: RequestId,
+  fun request_in_flight_resume_ack(sender: String,
+    in_flight_resume_ack_id: InFlightResumeAckId, request_id: RequestId,
     requester_id: StepId, auth: AmbientAuth): Array[ByteSeq] val ?
   =>
-    _encode(RequestFinishedAckCompleteMsg(sender, complete_request_id,
+    _encode(RequestInFlightResumeAckMsg(sender, in_flight_resume_ack_id,
       request_id, requester_id), auth)?
 
-  fun finished_ack(sender: String, request_id: RequestId, auth: AmbientAuth):
+  fun in_flight_ack(sender: String, request_id: RequestId, auth: AmbientAuth):
     Array[ByteSeq] val ?
   =>
-    _encode(FinishedAckMsg(sender, request_id), auth)?
+    _encode(InFlightAckMsg(sender, request_id), auth)?
 
-  fun finished_complete_ack(sender: String, request_id: RequestId,
+  fun in_flight_resume_ack(sender: String, request_id: RequestId,
     auth: AmbientAuth): Array[ByteSeq] val ?
   =>
     _encode(FinishedCompleteAckMsg(sender, request_id), auth)?
@@ -813,7 +813,7 @@ class val CleanShutdownMsg is ChannelMsg
   new val create(m: String) =>
     msg = m
 
-class val FinishedAckMsg is ChannelMsg
+class val InFlightAckMsg is ChannelMsg
   let sender: String
   let request_id: RequestId
 
@@ -829,7 +829,7 @@ class val FinishedCompleteAckMsg is ChannelMsg
     sender = sender'
     request_id = request_id'
 
-class val RequestFinishedAckMsg is ChannelMsg
+class val RequestInFlightAckMsg is ChannelMsg
   let sender: String
   let request_id: RequestId
   let requester_id: StepId
@@ -841,17 +841,17 @@ class val RequestFinishedAckMsg is ChannelMsg
     request_id = request_id'
     requester_id = requester_id'
 
-class val RequestFinishedAckCompleteMsg is ChannelMsg
+class val RequestInFlightResumeAckMsg is ChannelMsg
   let sender: String
-  let complete_request_id: FinishedAckCompleteId
+  let in_flight_resume_ack_id: InFlightResumeAckId
   let request_id: RequestId
   let requester_id: StepId
 
-  new val create(sender': String, complete_request_id': FinishedAckCompleteId,
+  new val create(sender': String, in_flight_resume_ack_id': InFlightResumeAckId,
     request_id': RequestId, requester_id': StepId)
   =>
     sender = sender'
-    complete_request_id = complete_request_id'
+    in_flight_resume_ack_id = in_flight_resume_ack_id'
     request_id = request_id'
     requester_id = requester_id'
 
@@ -861,7 +861,6 @@ class val ResumeTheWorldMsg is ChannelMsg
   new val create(sender': String) =>
     sender = sender'
 
-//!@
 class val ReportStatusMsg is ChannelMsg
   let code: ReportStatusCode
 
