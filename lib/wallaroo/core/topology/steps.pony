@@ -514,11 +514,15 @@ actor Step is (Producer & Consumer)
 
         _step_message_processor = NormalStepMessageProcessor(this)
       end
-      for r in _routes.values() do
-        let new_request_id =
-          _finished_ack_waiter.add_consumer_complete_request()
-        r.request_finished_complete_ack(complete_request_id,
-          new_request_id, _id, this)
+      if _routes.size() > 0 then
+        for r in _routes.values() do
+          let new_request_id =
+            _finished_ack_waiter.add_consumer_complete_request()
+          r.request_finished_complete_ack(complete_request_id,
+            new_request_id, _id, this)
+        end
+      else
+        _finished_ack_waiter.try_finished_complete_request_early()
       end
     end
 

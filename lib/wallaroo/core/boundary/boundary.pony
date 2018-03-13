@@ -492,6 +492,7 @@ actor OutgoingBoundary is Consumer
       request_id, requester_id, requester)
     then
       try
+        @printf[I32]("!@ Boundary sending request_complete\n".cstring())
         let new_request_id =
           _finished_ack_waiter.add_consumer_complete_request()
         _writev(ChannelMsgEncoder.request_finished_complete_ack(_worker_name,
@@ -1078,6 +1079,7 @@ class BoundaryNotify is WallarooOutgoingNetworkActorNotify
           @printf[I32]("Received FinishedCompleteAckMsg from %s\n".cstring(),
             fa.sender.cstring())
         end
+        @printf[I32]("!@ Received FinishedCompleteAckMsg at Boundary from %s\n".cstring(), fa.sender.cstring())
         _outgoing_boundary.receive_finished_complete_ack(fa.request_id)
       else
         @printf[I32](("Unknown Wallaroo data message type received at " +

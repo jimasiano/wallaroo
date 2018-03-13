@@ -335,12 +335,16 @@ actor TCPSource is (Producer & FinishedAckResponder & StatusReporter)
     if _finished_ack_waiter.request_finished_complete_ack(complete_request_id,
       request_id, requester_id, requester)
     then
-      for route in _routes.values() do
-        // @printf[I32]("!@ ---*****---- Complete consumer request at Source\n".cstring())
-        let new_request_id =
-          _finished_ack_waiter.add_consumer_complete_request()
-        route.request_finished_complete_ack(complete_request_id,
-          new_request_id, _source_id, this)
+      if _routes.size() > 0 then
+        for route in _routes.values() do
+          // @printf[I32]("!@ ---*****---- Complete consumer request at Source\n".cstring())
+          let new_request_id =
+            _finished_ack_waiter.add_consumer_complete_request()
+          route.request_finished_complete_ack(complete_request_id,
+            new_request_id, _source_id, this)
+        end
+      else
+        _finished_ack_waiter.try_finished_complete_request_early()
       end
     end
 

@@ -342,7 +342,7 @@ actor Connections is Cluster
       router_registry.add_connection_request_ids_for_complete(
         consume request_ids)
     else
-      router_registry.try_finish_complete_request_early(requester_id)
+      router_registry.try_finished_complete_request_early()
     end
 
   be request_cluster_unmute() =>

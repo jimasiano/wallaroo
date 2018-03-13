@@ -875,10 +875,14 @@ class val DataRouter is Equatable[DataRouter]
     requester_id: StepId, requester: FinishedAckRequester,
     finished_ack_waiter: FinishedAckWaiter)
   =>
-    for consumer in _data_routes.values() do
-      let request_id = finished_ack_waiter.add_consumer_complete_request()
-      consumer.request_finished_complete_ack(complete_request_id, request_id,
-        requester_id, requester)
+    if _data_routes.size() > 0 then
+      for consumer in _data_routes.values() do
+        let request_id = finished_ack_waiter.add_consumer_complete_request()
+        consumer.request_finished_complete_ack(complete_request_id, request_id,
+          requester_id, requester)
+      end
+    else
+      finished_ack_waiter.try_finished_complete_request_early()
     end
 
 trait val PartitionRouter is (Router & Equatable[PartitionRouter])

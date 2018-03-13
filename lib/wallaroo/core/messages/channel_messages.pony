@@ -341,6 +341,10 @@ primitive ChannelMsgEncoder
   =>
     _encode(FinishedCompleteAckMsg(sender, request_id), auth)?
 
+  fun resume_the_world(sender: String, auth: AmbientAuth): Array[ByteSeq] val ?
+  =>
+    _encode(ResumeTheWorldMsg(sender), auth)?
+
 primitive ChannelMsgDecoder
   fun apply(data: Array[U8] val, auth: AmbientAuth): ChannelMsg =>
     try
@@ -851,6 +855,12 @@ class val RequestFinishedAckCompleteMsg is ChannelMsg
     complete_request_id = complete_request_id'
     request_id = request_id'
     requester_id = requester_id'
+
+class val ResumeTheWorldMsg is ChannelMsg
+  let sender: String
+
+  new val create(sender': String) =>
+    sender = sender'
 
 //!@
 class val ReportStatusMsg is ChannelMsg
