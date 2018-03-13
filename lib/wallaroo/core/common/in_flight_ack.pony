@@ -23,47 +23,47 @@ use "wallaroo_labs/mort"
 trait CustomAction
   fun ref apply()
 
-actor InitialFinishedAckRequester is FinishedAckRequester
+actor InitialInFlightAckRequester is InFlightAckRequester
   """
-  Used when we are the initiator of a chain of finished ack requests
+  Used when we are the initiator of a chain of in flight ack requests
   """
   let _step_id: StepId
 
   new create(step_id: StepId) =>
     _step_id = step_id
 
-  be receive_finished_ack(request_id: RequestId) =>
+  be receive_in_flight_ack(request_id: RequestId) =>
     ifdef debug then
       // !@TODO: Remove "This step id"
-      @printf[I32](("Received finished ack at InitialFinishedAckRequester. " +
-        "This indicates the originator of a chain of finished ack requests " +
+      @printf[I32](("Received in flight ack at InitialInFlightAckRequester. " +
+        "This indicates the originator of a chain of in flight ack requests " +
         "has received the final ack. Request id received: %s. This step id: %s\n").cstring(),
         request_id.string().cstring(), _step_id.string().cstring())
     end
     None
 
-  be receive_finished_complete_ack(request_id: RequestId) =>
+  be receive_in_flight_resume_ack(request_id: RequestId) =>
     None
 
-  be try_finish_request_early(requester_id: StepId) =>
+  be try_finish_in_flight_request_early(requester_id: StepId) =>
     None
 
-actor EmptyFinishedAckRequester is FinishedAckRequester
-  be receive_finished_ack(request_id: RequestId) =>
+actor EmptyInFlightAckRequester is InFlightAckRequester
+  be receive_in_flight_ack(request_id: RequestId) =>
     None
 
-  be receive_finished_complete_ack(request_id: RequestId) =>
+  be receive_in_flight_resume_ack(request_id: RequestId) =>
     None
 
-  be try_finish_request_early(requester_id: StepId) =>
+  be try_finish_in_flight_request_early(requester_id: StepId) =>
     None
 
-class val FinishedAckCompleteId
+class val InFlightResumeAckId
   """
-  Every time we complete a messages finished acking phase, one worker will
-  generate a FinishedAckCompleteId and broadcast messages telling every node
+  Every time we finish a messages in flight acking phase, one worker will
+  generate a InFlightResumeAckId and broadcast messages telling every node
   that we are done with that phase. This id includes the id of the
-  initiator of the request_finished_complete_ack messages and a seq_id that
+  initiator of the request_in_flight_resume_ack messages and a seq_id that
   increments every time that initiator creates a new one for a new phase.
   """
   let initial_requester_id: StepId
@@ -73,11 +73,11 @@ class val FinishedAckCompleteId
     initial_requester_id = initial_requester_id'
     seq_id = seq_id'
 
-  fun eq(other: FinishedAckCompleteId): Bool =>
+  fun eq(other: InFlightResumeAckId): Bool =>
     (initial_requester_id == other.initial_requester_id) and
       (seq_id == other.seq_id)
 
-class FinishedAckWaiter
+class InFlightAckWaiter
   // This will be 0 for data receivers, router registry, and boundaries
   let _step_id: StepId
   let _id_gen: RequestIdGenerator = _id_gen.create()
@@ -93,24 +93,24 @@ class FinishedAckWaiter
   let _downstream_request_ids: Map[RequestId, StepId] =
     _downstream_request_ids.create()
   let _pending_acks: Map[StepId, SetIs[RequestId]] = _pending_acks.create()
-  let _upstream_requesters: Map[StepId, FinishedAckRequester] =
+  let _upstream_requesters: Map[StepId, InFlightAckRequester] =
     _upstream_requesters.create()
   let _custom_actions: Map[StepId, CustomAction] = _custom_actions.create()
 
   /////////////////
   // Complete Ack Requests
   // For determining that all nodes have acknowledged that this round of
-  // messages finished acking is over.
+  // messages in flight acking is over.
   /////////////////
-  var _complete_request_ids: Map[StepId, RequestId] =
-    _complete_request_ids.create()
-  let _pending_complete_acks: SetIs[RequestId] =
-    _pending_complete_acks.create()
-  let _upstream_complete_requesters: Map[StepId, FinishedAckRequester] =
-    _upstream_complete_requesters.create()
-  let _upstream_complete_request_ids: Map[StepId, RequestId] =
-    _upstream_complete_request_ids.create()
-  var _custom_complete_action: (CustomAction | None) = None
+  var _in_flight_resume_ack_ids: Map[StepId, RequestId] =
+    _in_flight_resume_ack_ids.create()
+  let _pending_resume_acks: SetIs[RequestId] =
+    _pending_resume_acks.create()
+  let _upstream_resume_requesters: Map[StepId, InFlightAckRequester] =
+    _upstream_resume_requesters.create()
+  let _upstream_in_flight_resume_ack_ids: Map[StepId, RequestId] =
+    _upstream_in_flight_resume_ack_ids.create()
+  var _custom_resume_action: (CustomAction | None) = None
 
   // If this was part of a step that was migrated, then it should no longer
   // receive requests. This allows us to check that invariant.
@@ -128,21 +128,21 @@ class FinishedAckWaiter
   fun ref initiate_request(initiator_id: StepId,
     custom_action: (CustomAction | None) = None)
   =>
-    add_new_request(initiator_id, 0, InitialFinishedAckRequester(_step_id))
+    add_new_request(initiator_id, 0, InitialInFlightAckRequester(_step_id))
     match custom_action
     | let ca: CustomAction =>
       set_custom_action(initiator_id, ca)
     end
 
   fun ref add_new_request(requester_id: StepId, request_id: RequestId,
-    upstream_requester': (FinishedAckRequester | None) = None,
+    upstream_requester': (InFlightAckRequester | None) = None,
     custom_action: (CustomAction | None) = None)
   =>
     let upstream_requester =
       match upstream_requester'
-      | let far: FinishedAckRequester => far
+      | let far: InFlightAckRequester => far
       else
-        EmptyFinishedAckRequester
+        EmptyInFlightAckRequester
       end
 
     // If _upstream_request_ids contains the requester_id, then we're
@@ -160,22 +160,21 @@ class FinishedAckWaiter
         @printf[I32]("Already processing a request from %s. Ignoring.\n"
           .cstring(), requester_id.string().cstring())
       end
-      //!@
-      upstream_requester.receive_finished_ack(request_id)
+      upstream_requester.receive_in_flight_ack(request_id)
     end
 
-  fun ref initiate_complete_request(
-    custom_action: (CustomAction | None) = None): FinishedAckCompleteId
+  fun ref initiate_resume_request(
+    custom_action: (CustomAction | None) = None): InFlightResumeAckId
   =>
-    _custom_complete_action = custom_action
+    _custom_resume_action = custom_action
     let new_req_id =
       try
-        _complete_request_ids(_step_id)? + 1
+        _in_flight_resume_ack_ids(_step_id)? + 1
       else
         1
       end
-    _complete_request_ids(_step_id) = new_req_id
-    FinishedAckCompleteId(_step_id, new_req_id)
+    _in_flight_resume_ack_ids(_step_id) = new_req_id
+    InFlightResumeAckId(_step_id, new_req_id)
 
   fun ref set_custom_action(requester_id: StepId, custom_action: CustomAction)
   =>
@@ -213,18 +212,6 @@ class FinishedAckWaiter
     _upstream_request_ids.size() > 0
 
   fun ref unmark_consumer_request(request_id: RequestId) =>
-    //!@
-    if not _downstream_request_ids.contains(request_id) then
-      @printf[I32]("!@ Failing because no _downstream_request_id\n".cstring())
-    else
-      try
-        let requester_id = _downstream_request_ids(request_id)?
-        if not _pending_acks.contains(requester_id) then
-          @printf[I32]("!@ Failing because no _pending_ack entry\n".cstring())
-        end
-      end
-    end
-
     try
       // @printf[I32]("!@ unmark_consumer_request 1\n".cstring())
       let requester_id = _downstream_request_ids(request_id)?
@@ -240,100 +227,79 @@ class FinishedAckWaiter
       // @printf[I32]("!@ unmark_consumer_request COMPLETE\n".cstring())
       _check_send_run(requester_id)
     else
-      @printf[I32]("!@ About to fail on %s\n".cstring(), _step_id.string().cstring())
       Fail()
     end
 
-  fun ref try_finish_request_early(requester_id: StepId) =>
+  fun ref try_finish_in_flight_request_early(requester_id: StepId) =>
     _check_send_run(requester_id)
 
-  fun ref request_finished_complete_ack(
-    complete_request_id: FinishedAckCompleteId,
+  fun ref request_in_flight_resume_ack(
+    in_flight_resume_ack_id: InFlightResumeAckId,
     request_id: RequestId, requester_id: StepId,
-    requester: FinishedAckRequester,
+    requester: InFlightAckRequester,
     custom_action: (CustomAction | None) = None): Bool
   =>
     """
-    Return true if this is the first time we've seen this complete_request_id.
+    Return true if this is the first time we've seen this in_flight_resume_ack_id.
     """
     ifdef debug then
       Invariant(not _has_migrated)
     end
 
-    let initial_requester_id = complete_request_id.initial_requester_id
-    let seq_id = complete_request_id.seq_id
+    let initial_requester_id = in_flight_resume_ack_id.initial_requester_id
+    let seq_id = in_flight_resume_ack_id.seq_id
 
     //!@
-    // if _upstream_complete_requesters.contains(requester_id) or _upstream_complete_request_ids.contains(requester_id) then
+    // if _upstream_resume_requesters.contains(requester_id) or _upstream_in_flight_resume_ack_ids.contains(requester_id) then
     //   @printf[I32]("!@ Already saw requester_id: %s at node %s\n".cstring(), requester_id.string().cstring(), _step_id.string().cstring())
     // end
 
-    //!@
     ifdef debug then
       // Since a node should only send a request to its downstreams once during
-      // a single request_finished_complete_ack phase, we should never see
+      // a single request_in_flight_resume_ack phase, we should never see
       // the same upstream requester id twice in the same phase.
-      Invariant(not _upstream_complete_requesters.contains(requester_id) and
-        not _upstream_complete_request_ids.contains(requester_id))
+      Invariant(not _upstream_resume_requesters.contains(requester_id) and
+        not _upstream_in_flight_resume_ack_ids.contains(requester_id))
     end
-    _upstream_complete_requesters(requester_id) = requester
-    _upstream_complete_request_ids(requester_id) = request_id
-    //!@
-    // if _upstream_complete_request_ids.contains(requester_id) then
-    //   try
-    //     _upstream_complete_request_ids(requester_id)?.push(request_id)
-    //   else
-    //     Fail()
-    //   end
-    // else
-    //   let r_ids = Array[RequestId]
-    //   r_ids.push(request_id)
-    //   _upstream_complete_request_ids(requester_id) = r_ids
-    // end
+    _upstream_resume_requesters(requester_id) = requester
+    _upstream_in_flight_resume_ack_ids(requester_id) = request_id
 
     match custom_action
     | let ca: CustomAction =>
-      _custom_complete_action = ca
+      _custom_resume_action = ca
     end
 
     // We need to see if we have already handled this phase. If so, then
     // we return false. If this is the first time we've received this
-    // FinishedAckCompleteId, then we clear our old finished ack data and
+    // InFlightResumeAckId, then we clear our old in flight ack data and
     // return true so that the encapsulating node can send requests
     // downstream. We should never send requests downstream more than
-    // once for the same FinishedAckCompleteId.
-    if _complete_request_ids.contains(initial_requester_id) then
+    // once for the same InFlightResumeAckId.
+    if _in_flight_resume_ack_ids.contains(initial_requester_id) then
       try
-        let current = _complete_request_ids(initial_requester_id)?
-        // @printf[I32]("!@ request_finished_complete_ack Current: %s, seq_id: %s reported from %s. Pending: %s, upstream_complete_requesters: %s, init: %s\n".cstring(), current.string().cstring(), seq_id.string().cstring(), _step_id.string().cstring(), _pending_complete_acks.size().string().cstring(), _upstream_complete_requesters.size().string().cstring(), initial_requester_id.string().cstring())
+        let current = _in_flight_resume_ack_ids(initial_requester_id)?
+        // @printf[I32]("!@ request_in_flight_resume_ack Current: %s, seq_id: %s reported from %s. Pending: %s, upstream_resume_requesters: %s, init: %s\n".cstring(), current.string().cstring(), seq_id.string().cstring(), _step_id.string().cstring(), _pending_resume_acks.size().string().cstring(), _upstream_resume_requesters.size().string().cstring(), initial_requester_id.string().cstring())
         if current < seq_id then
           ifdef debug then
-            // We shouldn't be processing a new complete ack phase until
+            // We shouldn't be processing a new resume ack phase until
             // the last one is finished.
-            Invariant(_pending_complete_acks.size() == 0)
+            Invariant(_pending_resume_acks.size() == 0)
           end
-          _complete_request_ids(initial_requester_id) = seq_id
-          _clear_finished_ack_data()
+          _in_flight_resume_ack_ids(initial_requester_id) = seq_id
+          _clear_in_flight_ack_data()
           true
         else
-          // If we've already handled this complete_request_id then we
+          // If we've already handled this in_flight_resume_ack_id then we
           // can immediately ack any new upstream requester since we know
           // we've forwarded the request to all our downstreams and that there
           // is one requester still waiting on our ack (which would prevent
           // an early termination of the algorithm).
-          requester.receive_finished_complete_ack(request_id)
+          requester.receive_in_flight_resume_ack(request_id)
           try
             // Since we just acked this requester for this request_id, we need
             // to remove it from our upstream records.
-            _upstream_complete_requesters.remove(requester_id)?
-            _upstream_complete_request_ids.remove(requester_id)?
-
-            //!@
-            // _upstream_complete_request_ids(requester_id)?.pop()?
-            // if _upstream_complete_request_ids(requester_id)?.size() == 0 then
-            //   _upstream_complete_request_ids.remove(requester_id)?
-            //   _upstream_complete_requesters.remove(requester_id)?
-            // end
+            _upstream_resume_requesters.remove(requester_id)?
+            _upstream_in_flight_resume_ack_ids.remove(requester_id)?
           else
             Fail()
           end
@@ -344,18 +310,18 @@ class FinishedAckWaiter
         false
       end
     else
-        // @printf[I32]("!@ request_finished_complete_ack Current: %s, seq_id: %s reported from %s. Pending: %s, upstream_complete_requesters: %s, init: %s\n".cstring(), USize(0).string().cstring(), seq_id.string().cstring(), _step_id.string().cstring(), _pending_complete_acks.size().string().cstring(), _upstream_complete_requesters.size().string().cstring(), initial_requester_id.string().cstring())
+        // @printf[I32]("!@ request_in_flight_resume_ack Current: %s, seq_id: %s reported from %s. Pending: %s, upstream_resume_requesters: %s, init: %s\n".cstring(), USize(0).string().cstring(), seq_id.string().cstring(), _step_id.string().cstring(), _pending_resume_acks.size().string().cstring(), _upstream_resume_requesters.size().string().cstring(), initial_requester_id.string().cstring())
       ifdef debug then
-        // We shouldn't be processing a new complete ack phase until
+        // We shouldn't be processing a new resume ack phase until
         // the last one is finished.
-        Invariant(_pending_complete_acks.size() == 0)
+        Invariant(_pending_resume_acks.size() == 0)
       end
-      _complete_request_ids(initial_requester_id) = seq_id
-      _clear_finished_ack_data()
+      _in_flight_resume_ack_ids(initial_requester_id) = seq_id
+      _clear_in_flight_ack_data()
       true
     end
 
-  fun ref add_consumer_complete_request(
+  fun ref add_consumer_resume_request(
     supplied_id: (RequestId | None) = None): RequestId
   =>
     let request_id =
@@ -364,63 +330,54 @@ class FinishedAckWaiter
       else
         _id_gen()
       end
-    _pending_complete_acks.set(request_id)
+    _pending_resume_acks.set(request_id)
     request_id
 
-  fun ref unmark_consumer_complete_request(request_id: RequestId) =>
-    if _pending_complete_acks.size() > 0 then
-      // @printf[I32]("!@ unmark_consumer_complete_request() with %s pending at %s\n".cstring(), _pending_complete_acks.size().string().cstring(), _step_id.string().cstring())
-      _pending_complete_acks.unset(request_id)
-      if _pending_complete_acks.size() == 0 then
-        _complete_request_is_done()
+  fun ref unmark_consumer_resume_request(request_id: RequestId) =>
+    if _pending_resume_acks.size() > 0 then
+      // @printf[I32]("!@ unmark_consumer_resume_request() with %s pending at %s\n".cstring(), _pending_resume_acks.size().string().cstring(), _step_id.string().cstring())
+      _pending_resume_acks.unset(request_id)
+      if _pending_resume_acks.size() == 0 then
+        _resume_request_is_done()
       end
-    //!@
-    // else
-    //   @printf[I32]("!@ We shouldn't be acked right now!!!\n".cstring())
-    //   Fail()
     end
 
-  fun ref try_finished_complete_request_early() =>
-    // @printf[I32]("!@ try_finished_complete_request_early\n".cstring())
-    if _pending_complete_acks.size() == 0 then
-      _complete_request_is_done()
+  fun ref try_finish_resume_request_early() =>
+    // @printf[I32]("!@ try_finished_resume_request_early\n".cstring())
+    if _pending_resume_acks.size() == 0 then
+      _resume_request_is_done()
     end
 
-  fun ref _complete_request_is_done() =>
-    // @printf[I32]("!@ ------ !!! _complete_request_is_done() at %s,  upstream_complete_requesters: %s!!! \n".cstring(), _step_id.string().cstring(), _upstream_complete_requesters.size().string().cstring())
-    for (requester_id, requester) in _upstream_complete_requesters.pairs() do
+  fun ref _resume_request_is_done() =>
+    // @printf[I32]("!@ ------ !!! _resume_request_is_done() at %s,  upstream_resume_requesters: %s!!! \n".cstring(), _step_id.string().cstring(), _upstream_resume_requesters.size().string().cstring())
+    for (requester_id, requester) in _upstream_resume_requesters.pairs() do
       try
-        //!@
-        // for upstream_request_id in
-        //   _upstream_complete_request_ids(requester_id)?.values()
-        // do
-          let upstream_request_id =
-            _upstream_complete_request_ids(requester_id)?
-          requester.receive_finished_complete_ack(upstream_request_id)
-        // end
+        let upstream_request_id =
+          _upstream_in_flight_resume_ack_ids(requester_id)?
+        requester.receive_in_flight_resume_ack(upstream_request_id)
       else
         Fail()
       end
     end
-    match _custom_complete_action
+    match _custom_resume_action
     | let ca: CustomAction =>
       ca()
-      _custom_complete_action = None
+      _custom_resume_action = None
     end
-    _clear_complete_data()
+    _clear_resume_data()
 
-  fun ref _clear_finished_ack_data() =>
+  fun ref _clear_in_flight_ack_data() =>
     _pending_acks.clear()
     _downstream_request_ids.clear()
     _upstream_request_ids.clear()
     _upstream_requesters.clear()
     _custom_actions.clear()
 
-  fun ref _clear_complete_data() =>
-    _pending_complete_acks.clear()
-    _upstream_complete_requesters.clear()
-    _upstream_complete_request_ids.clear()
-    _custom_complete_action = None
+  fun ref _clear_resume_data() =>
+    _pending_resume_acks.clear()
+    _upstream_resume_requesters.clear()
+    _upstream_in_flight_resume_ack_ids.clear()
+    _custom_resume_action = None
 
   fun report_status(code: ReportStatusCode) =>
     None
@@ -434,7 +391,7 @@ class FinishedAckWaiter
       if _pending_acks(requester_id)?.size() == 0 then
         let upstream_request_id = _upstream_request_ids(requester_id)?
         _upstream_requesters(requester_id)?
-          .receive_finished_ack(upstream_request_id)
+          .receive_in_flight_ack(upstream_request_id)
         if _custom_actions.contains(requester_id) then
           _custom_actions(requester_id)?()
           _custom_actions.remove(requester_id)?

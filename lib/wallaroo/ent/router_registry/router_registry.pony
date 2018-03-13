@@ -33,7 +33,7 @@ use "wallaroo_labs/mort"
 use "wallaroo_labs/query"
 
 
-actor RouterRegistry is FinishedAckRequester
+actor RouterRegistry is InFlightAckRequester
   let _id: StepId
   let _auth: AmbientAuth
   let _data_receivers: DataReceivers
@@ -55,7 +55,7 @@ actor RouterRegistry is FinishedAckRequester
   var _application_ready_to_work: Bool = false
 
   // !@ remove 1
-  let _finished_ack_waiter: FinishedAckWaiter
+  let _in_flight_ack_waiter: InFlightAckWaiter
 
   ////////////////
   // Subscribers
@@ -94,7 +94,6 @@ actor RouterRegistry is FinishedAckRequester
   // Partition Migration
   //////
 
-  //!@
   var _stop_the_world_in_process: Bool = false
 
   var _leaving_in_process: Bool = false
@@ -125,9 +124,6 @@ actor RouterRegistry is FinishedAckRequester
 
   var _initiated_stop_the_world: Bool = false
 
-  //!@
-  let _requests: Map[RequestId, String] = _requests.create()
-
   new create(auth: AmbientAuth, worker_name: String,
     data_receivers: DataReceivers, c: Connections,
     recovery_file_cleaner: RecoveryFileCleaner, stop_the_world_pause: U64)
@@ -140,7 +136,7 @@ actor RouterRegistry is FinishedAckRequester
     _stop_the_world_pause = stop_the_world_pause
     _connections.register_disposable(this)
     _id = (digestof this).u128()
-    _finished_ack_waiter = FinishedAckWaiter(_id)
+    _in_flight_ack_waiter = InFlightAckWaiter(_id)
 
     @printf[I32]("!@ RouterRegistry id: %s\n".cstring(), _id.string().cstring())
 
@@ -290,11 +286,8 @@ actor RouterRegistry is FinishedAckRequester
     for (worker, boundary) in bs.pairs() do
       if not _outgoing_boundaries.contains(worker) then
         _outgoing_boundaries(worker) = boundary
-        //!@
         new_boundaries(worker) = boundary
       end
-      //!@
-      // new_boundaries(worker) = boundary
     end
     let new_boundaries_sendable: Map[String, OutgoingBoundary] val =
       consume new_boundaries
@@ -633,7 +626,7 @@ actor RouterRegistry is FinishedAckRequester
     timers(consume timer)
 
     //TODO: Use barrier algo for log rotation
-    // _request_finished_acks(LogRotationAction(this))
+    // _request_in_flight_acks(LogRotationAction(this))
 
   be begin_log_rotation() =>
     """
@@ -730,7 +723,7 @@ actor RouterRegistry is FinishedAckRequester
     """
     _stop_the_world_in_process = true
     _stop_the_world_for_grow_migration(new_workers)
-    _initiate_request_finished_acks(MigrationAction(this, new_workers))
+    _initiate_request_in_flight_acks(MigrationAction(this, new_workers))
 
   fun ref _stop_the_world_for_grow_migration(new_workers: Array[String] val) =>
     """
@@ -749,10 +742,10 @@ actor RouterRegistry is FinishedAckRequester
     @printf[I32]("!@ _try_resume_the_world\n".cstring())
     if _initiated_stop_the_world then
       @printf[I32]("!@ I _initiated_stop_the_world so I'm doing it\n".cstring())
-      let complete_request_id = _finished_ack_waiter
-        .initiate_complete_request(ResumeTheWorldAction(this))
-      _request_finished_complete_acks(complete_request_id)
-      _connections.request_finished_acks_complete(complete_request_id, _id,
+      let in_flight_resume_ack_id = _in_flight_ack_waiter
+        .initiate_resume_request(ResumeTheWorldAction(this))
+      _request_in_flight_resume_acks(in_flight_resume_ack_id)
+      _connections.request_in_flight_acks_complete(in_flight_resume_ack_id, _id,
         this)
     end
 
@@ -902,24 +895,24 @@ actor RouterRegistry is FinishedAckRequester
       source.report_status(code)
     end
 
-  be remote_request_finished_ack(originating_worker: String,
+  be remote_request_in_flight_ack(originating_worker: String,
     upstream_request_id: RequestId, upstream_requester_id: StepId)
   =>
-    // @printf[I32]("!@ remote_request_finished_ack REGISTRY %s\n".cstring(), _id.string().cstring())
-    _add_remote_finished_ack_request(originating_worker, upstream_request_id,
+    // @printf[I32]("!@ remote_request_in_flight_ack REGISTRY %s\n".cstring(), _id.string().cstring())
+    _add_remote_in_flight_ack_request(originating_worker, upstream_request_id,
       upstream_requester_id)
 
-  be remote_request_finished_complete_ack(originating_worker: String,
-    complete_request_id: FinishedAckCompleteId, request_id: RequestId,
+  be remote_request_in_flight_resume_ack(originating_worker: String,
+    in_flight_resume_ack_id: InFlightResumeAckId, request_id: RequestId,
     requester_id: StepId)
   =>
-    // @printf[I32]("!@ remote_request_finished_complete_ack from %s !!-!-!!\n".cstring(), originating_worker.cstring())
-    if _finished_ack_waiter.request_finished_complete_ack(complete_request_id,
-      request_id, requester_id, EmptyFinishedAckRequester,
+    // @printf[I32]("!@ remote_request_in_flight_resume_ack from %s !!-!-!!\n".cstring(), originating_worker.cstring())
+    if _in_flight_ack_waiter.request_in_flight_resume_ack(in_flight_resume_ack_id,
+      request_id, requester_id, EmptyInFlightAckRequester,
       AckFinishedCompleteAction(_auth, _worker_name, originating_worker,
         request_id, _connections))
     then
-      _request_finished_complete_acks(complete_request_id)
+      _request_in_flight_resume_acks(in_flight_resume_ack_id)
     end
 
   be process_migrating_target_ack(target: String) =>
@@ -938,43 +931,43 @@ actor RouterRegistry is FinishedAckRequester
       _unmute_request(_worker_name)
     end
 
-  fun ref _initiate_request_finished_acks(custom_action: CustomAction,
+  fun ref _initiate_request_in_flight_acks(custom_action: CustomAction,
     excluded_workers: Array[String] val = recover Array[String] end)
   =>
-    _finished_ack_waiter.initiate_request(_id, custom_action)
-    _connections.request_finished_acks(_id, this, excluded_workers)
-    _request_finished_acks(_id)
+    _in_flight_ack_waiter.initiate_request(_id, custom_action)
+    _connections.request_in_flight_acks(_id, this, excluded_workers)
+    _request_in_flight_acks(_id)
 
-  fun ref _add_remote_finished_ack_request(originating_worker: String,
+  fun ref _add_remote_in_flight_ack_request(originating_worker: String,
     upstream_request_id: RequestId, upstream_requester_id: StepId)
   =>
-    if not _finished_ack_waiter.already_added_request(upstream_requester_id)
+    if not _in_flight_ack_waiter.already_added_request(upstream_requester_id)
     then
-      _finished_ack_waiter.add_new_request(upstream_requester_id,
+      _in_flight_ack_waiter.add_new_request(upstream_requester_id,
         upstream_request_id where custom_action = AckFinishedAction(_auth,
           _worker_name, originating_worker, upstream_request_id, _connections))
 
-      _request_finished_acks(upstream_requester_id)
+      _request_in_flight_acks(upstream_requester_id)
     else
       try
-        let finished_ack_msg =
-          ChannelMsgEncoder.finished_ack(_worker_name, upstream_request_id,
+        let in_flight_ack_msg =
+          ChannelMsgEncoder.in_flight_ack(_worker_name, upstream_request_id,
             _auth)?
-        _connections.send_control(originating_worker, finished_ack_msg)
+        _connections.send_control(originating_worker, in_flight_ack_msg)
       else
         Fail()
       end
     end
 
-  fun ref _request_finished_acks(requester_id: StepId) =>
+  fun ref _request_in_flight_acks(requester_id: StepId) =>
     """
-    Get finished acks from all local sources and steps
+    Get in flight acks from all local sources and steps
     """
-    // @printf[I32]("!@ _request_finished_acks REGISTRY %s\n".cstring(), _id.string().cstring())
+    // @printf[I32]("!@ _request_in_flight_acks REGISTRY %s\n".cstring(), _id.string().cstring())
 
-    //TODO: !@request finished acks on remote workers
+    //TODO: !@request in flight acks on remote workers
     ifdef debug then
-      @printf[I32](("RouterRegistry requesting finished acks for %s local " +
+      @printf[I32](("RouterRegistry requesting in flight acks for %s local " +
         "sources and %s local steps/sinks.\n").cstring(),
         _sources.size().string().cstring(),
         _data_router.size().string().cstring())
@@ -985,37 +978,32 @@ actor RouterRegistry is FinishedAckRequester
       for source in _sources.values() do
         @printf[I32]("!@ -- Stopping world for source %s\n".cstring(), (digestof source).string().cstring())
         let request_id =
-          _finished_ack_waiter.add_consumer_request(requester_id)
-        source.request_finished_ack(request_id, _id, this)
+          _in_flight_ack_waiter.add_consumer_request(requester_id)
+        source.request_in_flight_ack(request_id, _id, this)
       end
       @printf[I32]("!@ RouterRegistry requesting %s local steps\n".cstring(), _data_router.size().string().cstring())
       // Request for local steps and sinks
-      _data_router.request_finished_ack(requester_id, this,
-        _finished_ack_waiter)
+      _data_router.request_in_flight_ack(requester_id, this,
+        _in_flight_ack_waiter)
     else
-      _finished_ack_waiter.try_finish_request_early(requester_id)
+      _in_flight_ack_waiter.try_finish_in_flight_request_early(requester_id)
     end
 
-  fun ref _request_finished_complete_acks(complete_request_id:
-    FinishedAckCompleteId)
+  fun ref _request_in_flight_resume_acks(in_flight_resume_ack_id:
+    InFlightResumeAckId)
   =>
-    //!@
-    _requests.clear()
     if _has_local_target() then
       // Request for sources
       for source in _sources.values() do
-        let request_id = _finished_ack_waiter.add_consumer_complete_request()
-        //!@
-        _requests(request_id) = "Source"
-        source.request_finished_complete_ack(complete_request_id,
+        let request_id = _in_flight_ack_waiter.add_consumer_resume_request()
+        source.request_in_flight_resume_ack(in_flight_resume_ack_id,
           request_id, _id, this)
       end
       // Request for local steps and sinks
-        //!@ Remove _requests
-      _data_router.request_finished_complete_ack(complete_request_id,
-        _id, this, _finished_ack_waiter, _requests)
+      _data_router.request_in_flight_resume_ack(in_flight_resume_ack_id,
+        _id, this, _in_flight_ack_waiter)
     else
-      _finished_ack_waiter.try_finished_complete_request_early()
+      _in_flight_ack_waiter.try_finish_resume_request_early()
     end
 
   fun _has_local_target(): Bool =>
@@ -1026,29 +1014,27 @@ actor RouterRegistry is FinishedAckRequester
 
   be add_connection_request_ids(r_ids: Array[RequestId] val) =>
     for r_id in r_ids.values() do
-      _finished_ack_waiter.add_consumer_request(_id, r_id)
+      _in_flight_ack_waiter.add_consumer_request(_id, r_id)
     end
 
   be add_connection_request_ids_for_complete(r_ids: Array[RequestId] val) =>
     for r_id in r_ids.values() do
-      //!@
-      _requests(r_id) = "Remote RouterRegistry"
-      _finished_ack_waiter.add_consumer_complete_request(r_id)
+      _in_flight_ack_waiter.add_consumer_resume_request(r_id)
     end
 
-  be try_finish_request_early(requester_id: StepId) =>
-    _finished_ack_waiter.try_finish_request_early(requester_id)
+  be try_finish_in_flight_request_early(requester_id: StepId) =>
+    _in_flight_ack_waiter.try_finish_in_flight_request_early(requester_id)
 
-  be try_finished_complete_request_early() =>
-    _finished_ack_waiter.try_finished_complete_request_early()
+  be try_finish_resume_request_early() =>
+    _in_flight_ack_waiter.try_finish_resume_request_early()
 
-  be receive_finished_ack(request_id: RequestId) =>
-    // @printf[I32]("!@ receive_finished_ack REGISTRY for %s\n".cstring(), request_id.string().cstring())
-    _finished_ack_waiter.unmark_consumer_request(request_id)
+  be receive_in_flight_ack(request_id: RequestId) =>
+    // @printf[I32]("!@ receive_in_flight_ack REGISTRY for %s\n".cstring(), request_id.string().cstring())
+    _in_flight_ack_waiter.unmark_consumer_request(request_id)
 
-  be receive_finished_complete_ack(request_id: RequestId) =>
+  be receive_in_flight_resume_ack(request_id: RequestId) =>
     // @printf[I32]("!@ RouterRegistry rcvd request id: %s\n".cstring(), request_id.string().cstring())
-    _finished_ack_waiter.unmark_consumer_complete_request(request_id)
+    _in_flight_ack_waiter.unmark_consumer_resume_request(request_id)
 
   fun _stop_all_local() =>
     """
@@ -1185,7 +1171,7 @@ actor RouterRegistry is FinishedAckRequester
         Fail()
       end
       _prepare_shrink(remaining_workers, leaving_workers)
-      _initiate_request_finished_acks(LeavingMigrationAction(_auth,
+      _initiate_request_in_flight_acks(LeavingMigrationAction(_auth,
         _worker_name, remaining_workers, leaving_workers, _connections))
     end
 
@@ -1484,12 +1470,6 @@ class LeavingMigrationAction is CustomAction
 
   fun ref apply() =>
     try
-      @printf[I32]("!@ LeavingMigrationAction... Leaving:\n".cstring())
-      //!@
-      for w in _leaving_workers.values() do
-        @printf[I32]("!@ -!- %s\n".cstring(), w.cstring())
-      end
-
       let msg = ChannelMsgEncoder.begin_leaving_migration(_remaining_workers,
         _leaving_workers, _auth)?
       for w in _leaving_workers.values() do
@@ -1522,9 +1502,9 @@ class AckFinishedAction is CustomAction
 
   fun apply() =>
     try
-      let finished_ack_msg =
-        ChannelMsgEncoder.finished_ack(_worker, _request_id, _auth)?
-      _connections.send_control(_originating_worker, finished_ack_msg)
+      let in_flight_ack_msg =
+        ChannelMsgEncoder.in_flight_ack(_worker, _request_id, _auth)?
+      _connections.send_control(_originating_worker, in_flight_ack_msg)
     else
       Fail()
     end
@@ -1547,9 +1527,9 @@ class AckFinishedCompleteAction is CustomAction
 
   fun apply() =>
     try
-      let finished_ack_msg =
-        ChannelMsgEncoder.finished_complete_ack(_worker, _request_id, _auth)?
-      _connections.send_control(_originating_worker, finished_ack_msg)
+      let in_flight_ack_msg =
+        ChannelMsgEncoder.in_flight_resume_ack(_worker, _request_id, _auth)?
+      _connections.send_control(_originating_worker, in_flight_ack_msg)
     else
       Fail()
     end

@@ -418,11 +418,11 @@ actor _TestProducer is Producer
   be request_ack() =>
     None
 
-  be receive_finished_ack(request_id: RequestId) =>
+  be receive_in_flight_ack(request_id: RequestId) =>
     None
 
-  be receive_finished_complete_ack(request_id: RequestId) =>
+  be receive_in_flight_resume_ack(request_id: RequestId) =>
     None
 
-  be try_finish_request_early(requester_id: StepId) =>
+  be try_finish_in_flight_request_early(requester_id: StepId) =>
     None

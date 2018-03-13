@@ -54,8 +54,7 @@ actor DataReceiver is Producer
   var _processing_phase: _DataReceiverProcessingPhase =
     _DataReceiverNotProcessingPhase
 
-  //!@ remove 3
-  var _finished_ack_waiter: FinishedAckWaiter = FinishedAckWaiter(3)
+  var _in_flight_ack_waiter: InFlightAckWaiter = InFlightAckWaiter
 
   new create(auth: AmbientAuth, worker_name: String, sender_name: String,
     initialized: Bool = false)
@@ -145,65 +144,65 @@ actor DataReceiver is Producer
   be report_status(code: ReportStatusCode) =>
     _router.report_status(code)
 
-  be request_finished_ack(upstream_request_id: RequestId, requester_id: StepId)
+  be request_in_flight_ack(upstream_request_id: RequestId, requester_id: StepId)
   =>
-    // @printf[I32]("!@ request_finished_ack DATA RECEIVER upstream_request_id: %s, requester_id: %s\n".cstring(), upstream_request_id.string().cstring(), requester_id.string().cstring())
-    if not _finished_ack_waiter.already_added_request(requester_id) then
-      _finished_ack_waiter.add_new_request(requester_id, upstream_request_id,
-        EmptyFinishedAckRequester, _WriteFinishedAck(this,
+    // @printf[I32]("!@ request_in_flight_ack DATA RECEIVER upstream_request_id: %s, requester_id: %s\n".cstring(), upstream_request_id.string().cstring(), requester_id.string().cstring())
+    if not _in_flight_ack_waiter.already_added_request(requester_id) then
+      _in_flight_ack_waiter.add_new_request(requester_id, upstream_request_id,
+        EmptyInFlightAckRequester, _WriteInFlightAck(this,
           upstream_request_id))
-      let requested = _router.request_finished_ack(requester_id, this,
-        _finished_ack_waiter)
+      let requested = _router.request_in_flight_ack(requester_id, this,
+        _in_flight_ack_waiter)
       if not requested then
-        _finished_ack_waiter.try_finish_request_early(requester_id)
+        _in_flight_ack_waiter.try_finish_in_flight_request_early(requester_id)
       end
     else
-      write_finished_ack(upstream_request_id)
+      write_in_flight_ack(upstream_request_id)
     end
 
-  be request_finished_complete_ack(complete_request_id: FinishedAckCompleteId,
+  be request_in_flight_resume_ack(in_flight_resume_ack_id: InFlightResumeAckId,
     upstream_request_id: RequestId, requester_id: StepId)
   =>
-    // @printf[I32]("!@ request_finished_complete_ack DATA RECEIVER\n".cstring())
-    if _finished_ack_waiter.request_finished_complete_ack(complete_request_id,
-      upstream_request_id, requester_id, EmptyFinishedAckRequester,
+    // @printf[I32]("!@ request_in_flight_resume_ack DATA RECEIVER\n".cstring())
+    if _in_flight_ack_waiter.request_in_flight_resume_ack(in_flight_resume_ack_id,
+      upstream_request_id, requester_id, EmptyInFlightAckRequester,
       _WriteFinishedCompleteAck(this, upstream_request_id))
     then
-      _router.request_finished_complete_ack(complete_request_id,
-        requester_id, this, _finished_ack_waiter)
+      _router.request_in_flight_resume_ack(in_flight_resume_ack_id,
+        requester_id, this, _in_flight_ack_waiter)
     end
 
-  be try_finish_request_early(requester_id: StepId) =>
-    _finished_ack_waiter.try_finish_request_early(requester_id)
+  be try_finish_in_flight_request_early(requester_id: StepId) =>
+    _in_flight_ack_waiter.try_finish_in_flight_request_early(requester_id)
 
-  be receive_finished_ack(request_id: RequestId) =>
-    // @printf[I32]("!@ receive_finished_ack DataReceiver\n".cstring())
-    _finished_ack_waiter.unmark_consumer_request(request_id)
+  be receive_in_flight_ack(request_id: RequestId) =>
+    // @printf[I32]("!@ receive_in_flight_ack DataReceiver\n".cstring())
+    _in_flight_ack_waiter.unmark_consumer_request(request_id)
 
-  be receive_finished_complete_ack(request_id: RequestId) =>
-    _finished_ack_waiter.unmark_consumer_complete_request(request_id)
+  be receive_in_flight_resume_ack(request_id: RequestId) =>
+    _in_flight_ack_waiter.unmark_consumer_resume_request(request_id)
 
-  be write_finished_ack(upstream_request_id: RequestId) =>
-    _write_finished_ack(upstream_request_id)
+  be write_in_flight_ack(upstream_request_id: RequestId) =>
+    _write_in_flight_ack(upstream_request_id)
 
-  fun ref _write_finished_ack(upstream_request_id: RequestId) =>
-    // @printf[I32]("!@ !! DataReceiver: write_finished_ack\n".cstring())
+  fun ref _write_in_flight_ack(upstream_request_id: RequestId) =>
+    // @printf[I32]("!@ !! DataReceiver: write_in_flight_ack\n".cstring())
     try
-      let ack_msg = ChannelMsgEncoder.finished_ack(_worker_name,
+      let ack_msg = ChannelMsgEncoder.in_flight_ack(_worker_name,
         upstream_request_id, _auth)?
       _write_on_conn(ack_msg)
     else
       Fail()
     end
 
-  be write_finished_complete_ack(upstream_request_id: RequestId) =>
-    _write_finished_complete_ack(upstream_request_id)
+  be write_in_flight_resume_ack(upstream_request_id: RequestId) =>
+    _write_in_flight_resume_ack(upstream_request_id)
 
-  fun ref _write_finished_complete_ack(upstream_request_id: RequestId) =>
-    // @printf[I32]("!@ !! DataReceiver: write_finished_complete_ack\n".cstring())
+  fun ref _write_in_flight_resume_ack(upstream_request_id: RequestId) =>
+    // @printf[I32]("!@ !! DataReceiver: write_in_flight_resume_ack\n".cstring())
     @printf[I32]("!@ DataReceiver: Acking request id %s\n".cstring(), upstream_request_id.string().cstring())
     try
-      let ack_msg = ChannelMsgEncoder.finished_complete_ack(_worker_name,
+      let ack_msg = ChannelMsgEncoder.in_flight_resume_ack(_worker_name,
         upstream_request_id, _auth)?
       _write_on_conn(ack_msg)
     else
@@ -388,7 +387,7 @@ class _RequestAck is TimerNotify
     _d.request_ack()
     true
 
-class _WriteFinishedAck is CustomAction
+class _WriteInFlightAck is CustomAction
   let _data_receiver: DataReceiver
   let _request_id: RequestId
 
@@ -397,8 +396,8 @@ class _WriteFinishedAck is CustomAction
     _request_id = request_id
 
   fun ref apply() =>
-    // @printf[I32]("!@ _WriteFinishedAck DataReceiver\n".cstring())
-    _data_receiver.write_finished_ack(_request_id)
+    // @printf[I32]("!@ _WriteInFlightAck DataReceiver\n".cstring())
+    _data_receiver.write_in_flight_ack(_request_id)
 
 class _WriteFinishedCompleteAck is CustomAction
   let _data_receiver: DataReceiver
@@ -410,4 +409,4 @@ class _WriteFinishedCompleteAck is CustomAction
 
   fun ref apply() =>
     @printf[I32]("!@ _WriteFinishedCompleteAck DataReceiver\n".cstring())
-    _data_receiver.write_finished_complete_ack(_request_id)
+    _data_receiver.write_in_flight_resume_ack(_request_id)

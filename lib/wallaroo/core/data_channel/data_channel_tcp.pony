@@ -268,21 +268,20 @@ class DataChannelConnectNotifier is DataChannelNotify
           c.boundary_id)
       | let m: SpinUpLocalTopologyMsg =>
         @printf[I32]("Received spin up local topology message!\n".cstring())
-      | let m: RequestFinishedAckMsg =>
+      | let m: RequestInFlightAckMsg =>
         ifdef "trace" then
-          @printf[I32]("Received RequestFinishedAckMsg from %s\n".cstring(),
+          @printf[I32]("Received RequestInFlightAckMsg from %s\n".cstring(),
             m.sender.cstring())
         end
-        _receiver.request_finished_ack(m.request_id, m.requester_id)
-      //!@
+        _receiver.request_in_flight_ack(m.request_id, m.requester_id)
       | let m: ReportStatusMsg =>
         _receiver.report_status(m.code)
-      | let m: RequestFinishedAckCompleteMsg =>
+      | let m: RequestInFlightResumeAckMsg =>
         ifdef "trace" then
-          @printf[I32]("Received RequestFinishedAckCompleteMsg from %s\n"
+          @printf[I32]("Received RequestInFlightResumeAckMsg from %s\n"
             .cstring(), m.sender.cstring())
         end
-        _receiver.request_finished_complete_ack(m.complete_request_id,
+        _receiver.request_in_flight_resume_ack(m.in_flight_resume_ack_id,
           m.request_id, m.requester_id)
       | let m: UnknownChannelMsg =>
         @printf[I32]("Unknown Wallaroo data message type: UnknownChannelMsg.\n"
@@ -322,8 +321,8 @@ trait _DataReceiverWrapper
     seq_id: U64, latest_ts: U64, metrics_id: U16, worker_ingress_ts: U64)
   fun report_status(code: ReportStatusCode)
 
-  fun request_finished_ack(request_id: RequestId, requester_id: StepId)
-  fun request_finished_complete_ack(complete_request_id: FinishedAckCompleteId,
+  fun request_in_flight_ack(request_id: RequestId, requester_id: StepId)
+  fun request_in_flight_resume_ack(in_flight_resume_ack_id: InFlightResumeAckId,
     request_id: RequestId, requester_id: StepId)
 
 class _InitDataReceiver is _DataReceiverWrapper
@@ -346,10 +345,10 @@ class _InitDataReceiver is _DataReceiverWrapper
   fun report_status(code: ReportStatusCode) =>
     Fail()
 
-  fun request_finished_ack(request_id: RequestId, requester_id: StepId) =>
+  fun request_in_flight_ack(request_id: RequestId, requester_id: StepId) =>
     Fail()
 
-  fun request_finished_complete_ack(complete_request_id: FinishedAckCompleteId,
+  fun request_in_flight_resume_ack(in_flight_resume_ack_id: InFlightResumeAckId,
     request_id: RequestId, requester_id: StepId)
   =>
     Fail()
@@ -378,11 +377,11 @@ class _DataReceiver is _DataReceiverWrapper
   fun report_status(code: ReportStatusCode) =>
     data_receiver.report_status(code)
 
-  fun request_finished_ack(request_id: RequestId, requester_id: StepId) =>
-    data_receiver.request_finished_ack(request_id, requester_id)
+  fun request_in_flight_ack(request_id: RequestId, requester_id: StepId) =>
+    data_receiver.request_in_flight_ack(request_id, requester_id)
 
-  fun request_finished_complete_ack(complete_request_id: FinishedAckCompleteId,
+  fun request_in_flight_resume_ack(in_flight_resume_ack_id: InFlightResumeAckId,
     request_id: RequestId, requester_id: StepId)
   =>
-    data_receiver.request_finished_complete_ack(complete_request_id,
+    data_receiver.request_in_flight_resume_ack(in_flight_resume_ack_id,
       request_id, requester_id)

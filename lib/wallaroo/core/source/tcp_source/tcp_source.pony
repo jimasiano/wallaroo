@@ -51,7 +51,7 @@ use @pony_asio_event_resubscribe_read[None](event: AsioEventID)
 use @pony_asio_event_resubscribe_write[None](event: AsioEventID)
 use @pony_asio_event_destroy[None](event: AsioEventID)
 
-actor TCPSource is (Producer & FinishedAckResponder & StatusReporter)
+actor TCPSource is (Producer & InFlightAckResponder & StatusReporter)
   """
   # TCPSource
 
@@ -95,7 +95,7 @@ actor TCPSource is (Producer & FinishedAckResponder & StatusReporter)
 
   // Producer (Resilience)
   var _seq_id: SeqId = 1 // 0 is reserved for "not seen yet"
-  var _finished_ack_waiter: FinishedAckWaiter
+  var _in_flight_ack_waiter: InFlightAckWaiter
 
   new _accept(source_id: StepId, listen: TCPSourceListener,
     notify: TCPSourceNotify iso, routes: Array[Consumer] val,
@@ -109,7 +109,7 @@ actor TCPSource is (Producer & FinishedAckResponder & StatusReporter)
     A new connection accepted on a server.
     """
     _source_id = source_id
-    _finished_ack_waiter = FinishedAckWaiter(_source_id)
+    _in_flight_ack_waiter = InFlightAckWaiter(_source_id)
     _metrics_reporter = consume metrics_reporter
     _listen = listen
     _notify = consume notify
@@ -310,59 +310,59 @@ actor TCPSource is (Producer & FinishedAckResponder & StatusReporter)
       route.report_status(code)
     end
 
-  be request_finished_ack(upstream_request_id: RequestId, requester_id: StepId,
-    upstream_requester: FinishedAckRequester)
+  be request_in_flight_ack(upstream_request_id: RequestId, requester_id: StepId,
+    upstream_requester: InFlightAckRequester)
   =>
     @printf[I32]("!@ Source stopping world (%s)\n".cstring(),
       _source_id.string().cstring())
 
-    if not _finished_ack_waiter.already_added_request(requester_id) then
-      _finished_ack_waiter.add_new_request(requester_id, upstream_request_id,
+    if not _in_flight_ack_waiter.already_added_request(requester_id) then
+      _in_flight_ack_waiter.add_new_request(requester_id, upstream_request_id,
         upstream_requester)
       if _routes.size() > 0 then
         for route in _routes.values() do
           // @printf[I32]("!@ ---*****---- Add consumer request at Source\n".cstring())
-          let request_id = _finished_ack_waiter.add_consumer_request(
+          let request_id = _in_flight_ack_waiter.add_consumer_request(
             requester_id)
-          route.request_finished_ack(request_id, _source_id, this)
+          route.request_in_flight_ack(request_id, _source_id, this)
         end
       else
-        upstream_requester.try_finish_request_early(requester_id)
+        upstream_requester.try_finish_in_flight_request_early(requester_id)
       end
     else
-      upstream_requester.receive_finished_ack(upstream_request_id)
+      upstream_requester.receive_in_flight_ack(upstream_request_id)
     end
 
-  be request_finished_complete_ack(complete_request_id: FinishedAckCompleteId,
+  be request_in_flight_resume_ack(in_flight_resume_ack_id: InFlightResumeAckId,
     request_id: RequestId, requester_id: StepId,
-    requester: FinishedAckRequester)
+    requester: InFlightAckRequester)
   =>
-    // @printf[I32]("!@ request_finished_complete_ack TCPSource\n".cstring())
-    if _finished_ack_waiter.request_finished_complete_ack(complete_request_id,
+    // @printf[I32]("!@ request_in_flight_resume_ack TCPSource\n".cstring())
+    if _in_flight_ack_waiter.request_in_flight_resume_ack(in_flight_resume_ack_id,
       request_id, requester_id, requester)
     then
       if _routes.size() > 0 then
         for route in _routes.values() do
           // @printf[I32]("!@ ---*****---- Complete consumer request at Source\n".cstring())
           let new_request_id =
-            _finished_ack_waiter.add_consumer_complete_request()
-          route.request_finished_complete_ack(complete_request_id,
+            _in_flight_ack_waiter.add_consumer_resume_request()
+          route.request_in_flight_resume_ack(in_flight_resume_ack_id,
             new_request_id, _source_id, this)
         end
       else
-        _finished_ack_waiter.try_finished_complete_request_early()
+        _in_flight_ack_waiter.try_finish_resume_request_early()
       end
     end
 
-  be try_finish_request_early(requester_id: StepId) =>
-    _finished_ack_waiter.try_finish_request_early(requester_id)
+  be try_finish_in_flight_request_early(requester_id: StepId) =>
+    _in_flight_ack_waiter.try_finish_in_flight_request_early(requester_id)
 
-  be receive_finished_ack(request_id: RequestId) =>
-    // @printf[I32]("!@ receive_finished_ack RECEIVE TCPSource %s\n".cstring(), _source_id.string().cstring())
-    _finished_ack_waiter.unmark_consumer_request(request_id)
+  be receive_in_flight_ack(request_id: RequestId) =>
+    // @printf[I32]("!@ receive_in_flight_ack RECEIVE TCPSource %s\n".cstring(), _source_id.string().cstring())
+    _in_flight_ack_waiter.unmark_consumer_request(request_id)
 
-  be receive_finished_complete_ack(request_id: RequestId) =>
-    _finished_ack_waiter.unmark_consumer_complete_request(request_id)
+  be receive_in_flight_resume_ack(request_id: RequestId) =>
+    _in_flight_ack_waiter.unmark_consumer_resume_request(request_id)
 
   //
   // TCP
