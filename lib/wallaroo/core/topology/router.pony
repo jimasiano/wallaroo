@@ -855,7 +855,6 @@ class val DataRouter is Equatable[DataRouter]
       Fail()
     end
 
-  //!@
   fun report_status(code: ReportStatusCode) =>
     for consumer in _data_routes.values() do
       consumer.report_status(code)

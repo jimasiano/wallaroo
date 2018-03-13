@@ -151,9 +151,6 @@ actor OutgoingBoundary is Consumer
   var _reconnect_pause: U64 = 10_000_000_000
   let _timers: Timers = Timers
 
-  //!@
-  var _finished_ack_status: Bool = false
-
   new create(auth: AmbientAuth, worker_name: String,
     metrics_reporter: MetricsReporter iso, host: String, service: String,
     from: String = "", init_size: USize = 64, max_size: USize = 16384,
@@ -449,16 +446,12 @@ actor OutgoingBoundary is Consumer
 
     _upstreams.unset(producer)
 
-  //!@
   be report_status(code: ReportStatusCode) =>
-    if not _finished_ack_status then
-      _finished_ack_status = true
-      _finished_ack_waiter.report_status(code)
-      try
-        _writev(ChannelMsgEncoder.report_status(code, _auth)?)
-      else
-        Fail()
-      end
+    _finished_ack_waiter.report_status(code)
+    try
+      _writev(ChannelMsgEncoder.report_status(code, _auth)?)
+    else
+      Fail()
     end
 
   be request_finished_ack(upstream_request_id: RequestId,
@@ -502,9 +495,6 @@ actor OutgoingBoundary is Consumer
         Fail()
       end
     end
-
-    //!@
-    _finished_ack_status = false
 
   be try_finish_request_early(requester_id: StepId) =>
     _finished_ack_waiter.try_finish_request_early(requester_id)

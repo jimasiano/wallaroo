@@ -31,7 +31,6 @@ actor DummyConsumer is Consumer
   be unregister_producer(producer: Producer) =>
     None
 
-  //!@
   be report_status(code: ReportStatusCode) =>
     None
 

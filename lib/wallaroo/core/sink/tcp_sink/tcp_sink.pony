@@ -299,12 +299,8 @@ actor TCPSink is Consumer
 
     _upstreams.unset(producer)
 
-  //!@
   be report_status(code: ReportStatusCode) =>
-    match code
-    | FinishedAcksStatus =>
-      @printf[I32]("!@ tcp sink finished_ack_status\n".cstring())
-    end
+    None
 
   be request_finished_ack(request_id: RequestId, requester_id: StepId,
     requester: FinishedAckRequester)

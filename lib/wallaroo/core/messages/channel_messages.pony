@@ -313,7 +313,6 @@ primitive ChannelMsgEncoder
   =>
     _encode(CleanShutdownMsg(msg), auth)?
 
-  //!@
   fun report_status(code: ReportStatusCode, auth: AmbientAuth):
     Array[ByteSeq] val ?
   =>

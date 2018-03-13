@@ -163,7 +163,6 @@ primitive ExternalMsgEncoder
     digest_map("stateless_partitions") = consume stateless_ps
     digest_map
 
-  //!@
   fun report_status(code: String, wb: Writer = Writer): Array[ByteSeq] val =>
     _encode(_ReportStatus(), code, wb)
 

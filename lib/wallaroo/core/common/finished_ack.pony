@@ -245,7 +245,6 @@ class FinishedAckWaiter
     end
 
   fun ref try_finish_request_early(requester_id: StepId) =>
-    // @printf[I32]("!@ try_finish_request_early\n".cstring())
     _check_send_run(requester_id)
 
   fun ref request_finished_complete_ack(
@@ -411,7 +410,6 @@ class FinishedAckWaiter
     _clear_complete_data()
 
   fun ref _clear_finished_ack_data() =>
-    // @printf[I32]("!@ finished_ack CLEAR on %s\n".cstring(), _step_id.string().cstring())
     _pending_acks.clear()
     _downstream_request_ids.clear()
     _upstream_request_ids.clear()
@@ -424,33 +422,8 @@ class FinishedAckWaiter
     _upstream_complete_request_ids.clear()
     _custom_complete_action = None
 
-  //!@
   fun report_status(code: ReportStatusCode) =>
-    match code
-    //!@
-    | FinishedAcksStatus =>
-      var pending: USize = 0
-      var requester_id: StepId = 0
-      for (r_id, pa) in _pending_acks.pairs() do
-        if pa.size() > 0 then
-          requester_id = r_id
-          pending = pending + 1
-        end
-      end
-      // @printf[I32]("!@ waiting at %s on %s pending ack groups, for requester ids:\n".cstring(), _step_id.string().cstring(), pending.string().cstring())
-      // if pending == 1 then
-        // @printf[I32]("!@ %s waiting for one for requester id %s\n".cstring(), _step_id.string().cstring(), requester_id.string().cstring())
-      // end
-      // for p in _pending_acks.keys() do
-      //   @printf[I32]("!@ %s (from %s)\n".cstring(), p.string().cstring(), _step_id.string().cstring())
-      // end
-    //!@
-    | RequestsStatus =>
-      @printf[I32]("!@ *| Pending complete acks: %s\n".cstring(), _pending_complete_acks.size().string().cstring())
-      for pca in _pending_complete_acks.values() do
-        @printf[I32]("!@ *| -- %s\n".cstring(), pca.string().cstring())
-      end
-    end
+    None
 
   fun ref _check_send_run(requester_id: StepId) =>
     try
