@@ -44,6 +44,7 @@ trait tag Producer is (Muteable & Ackable & AckRequester &
   fun ref route_to(c: Consumer): (Route | None)
   fun ref next_sequence_id(): SeqId
   fun ref current_sequence_id(): SeqId
+  be remove_route_to_consumer(c: Consumer)
 
 interface tag RouterUpdateable
   be update_router(r: Router)

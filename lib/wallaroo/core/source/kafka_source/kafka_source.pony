@@ -134,6 +134,15 @@ actor KafkaSource[In: Any val] is (Producer & FinishedAckResponder &
     end
     _notify.update_router(new_router)
 
+  be remove_route_to_consumer(c: Consumer) =>
+    if _routes.contains(c) then
+      try
+        _routes.remove(c)?
+      else
+        Fail()
+      end
+    end
+
   be add_boundary_builders(
     boundary_builders: Map[String, OutgoingBoundaryBuilder] val)
   =>

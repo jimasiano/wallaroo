@@ -186,6 +186,15 @@ actor TCPSource is (Producer & FinishedAckResponder & StatusReporter)
 
     _notify.update_router(new_router)
 
+  be remove_route_to_consumer(c: Consumer) =>
+    if _routes.contains(c) then
+      try
+        _routes.remove(c)?
+      else
+        Fail()
+      end
+    end
+
   be add_boundary_builders(
     boundary_builders: Map[String, OutgoingBoundaryBuilder] val)
   =>
@@ -287,9 +296,9 @@ actor TCPSource is (Producer & FinishedAckResponder & StatusReporter)
 
   //!@
   be report_status(code: ReportStatusCode) =>
-    @printf[I32]("!@ Source finished_ack_status\n".cstring())
     match code
     | FinishedAcksStatus =>
+      @printf[I32]("!@ Source finished_ack_status\n".cstring())
       _finished_ack_waiter.report_status(code)
     | BoundaryCountStatus =>
       var b_count: USize = 0
@@ -299,6 +308,10 @@ actor TCPSource is (Producer & FinishedAckResponder & StatusReporter)
         end
       end
       @printf[I32]("!@ Source %s has %s boundaries.\n".cstring(), _source_id.string().cstring(), b_count.string().cstring())
+    //!@
+    | RequestsStatus =>
+      @printf[I32]("!@ |* Source requests status\n".cstring())
+      _finished_ack_waiter.report_status(code)
     end
     for route in _routes.values() do
       route.report_status(code)
@@ -315,7 +328,7 @@ actor TCPSource is (Producer & FinishedAckResponder & StatusReporter)
         upstream_requester)
       if _routes.size() > 0 then
         for route in _routes.values() do
-          @printf[I32]("!@ ---*****---- Add consumer request at Source\n".cstring())
+          // @printf[I32]("!@ ---*****---- Add consumer request at Source\n".cstring())
           let request_id = _finished_ack_waiter.add_consumer_request(
             requester_id)
           route.request_finished_ack(request_id, _source_id, this)

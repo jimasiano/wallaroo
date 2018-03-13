@@ -206,6 +206,7 @@ actor DataReceiver is Producer
 
   fun ref _write_finished_complete_ack(upstream_request_id: RequestId) =>
     // @printf[I32]("!@ !! DataReceiver: write_finished_complete_ack\n".cstring())
+    @printf[I32]("!@ DataReceiver: Acking request id %s\n".cstring(), upstream_request_id.string().cstring())
     try
       let ack_msg = ChannelMsgEncoder.finished_complete_ack(_worker_name,
         upstream_request_id, _auth)?
@@ -251,6 +252,10 @@ actor DataReceiver is Producer
     for id in _router.route_ids().values() do
       _watermarker.add_route(id)
     end
+
+  be remove_route_to_consumer(c: Consumer) =>
+    // DataReceiver doesn't have its own routes
+    None
 
   be received(d: DeliveryMsg, pipeline_time_spent: U64, seq_id: SeqId,
     latest_ts: U64, metrics_id: U16, worker_ingress_ts: U64)

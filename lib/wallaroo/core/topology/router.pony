@@ -828,6 +828,18 @@ class val DataRouter is Equatable[DataRouter]
     DataRouter.with_route_ids(consume new_data_routes,
       consume new_tid_map, consume new_rid_map)
 
+  fun remove_routes_to_consumer(c: Consumer) =>
+    """
+    For all consumers we have routes to, tell them to remove any route to
+    the provided consumer.
+    """
+    for consumer in _data_routes.values() do
+      match consumer
+      | let p: Producer =>
+        p.remove_route_to_consumer(c)
+      end
+    end
+
   fun eq(that: box->DataRouter): Bool =>
     MapTagEquality[U128, Consumer](_data_routes, that._data_routes) and
       MapEquality[U128, RouteId](_target_ids_to_route_ids,
@@ -871,13 +883,17 @@ class val DataRouter is Equatable[DataRouter]
       false
     end
 
+    //!@ remove requests
   fun request_finished_complete_ack(complete_request_id: FinishedAckCompleteId,
     requester_id: StepId, requester: FinishedAckRequester,
-    finished_ack_waiter: FinishedAckWaiter)
+    finished_ack_waiter: FinishedAckWaiter, requests: Map[RequestId, String] =
+    Map[RequestId, String])
   =>
     if _data_routes.size() > 0 then
       for consumer in _data_routes.values() do
         let request_id = finished_ack_waiter.add_consumer_complete_request()
+        //!@
+        requests(request_id) = "Consumer from DataRouter"
         consumer.request_finished_complete_ack(complete_request_id, request_id,
           requester_id, requester)
       end
@@ -1199,7 +1215,7 @@ class val LocalPartitionRouter[In: Any val,
     do
       router_registry.add_to_step_waiting_list(step_id)
       step.send_state[Key](boundary, state_name', key)
-      router_registry.move_stateful_step_to_proxy[Key](step_id,
+      router_registry.move_stateful_step_to_proxy[Key](step_id, step,
         ProxyAddress(target_worker, step_id), key, state_name')
       @printf[I32](
         "^^Migrating step %s to outgoing boundary %s/%lx\n".cstring(),

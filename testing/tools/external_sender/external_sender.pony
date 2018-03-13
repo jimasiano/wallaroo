@@ -96,6 +96,9 @@ actor Main
           ExternalMsgEncoder.report_status("finished-acks-status")
         | "boundary-count-status" =>
           ExternalMsgEncoder.report_status("boundary-count-status")
+        //!@
+        | "requests-status" =>
+          ExternalMsgEncoder.report_status("requests-status")
         else // default to print
           ExternalMsgEncoder.print_message(message)
         end

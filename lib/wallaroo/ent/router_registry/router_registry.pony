@@ -125,6 +125,9 @@ actor RouterRegistry is FinishedAckRequester
 
   var _initiated_stop_the_world: Bool = false
 
+  //!@
+  let _requests: Map[RequestId, String] = _requests.create()
+
   new create(auth: AmbientAuth, worker_name: String,
     data_receivers: DataReceivers, c: Connections,
     recovery_file_cleaner: RecoveryFileCleaner, stop_the_world_pause: U64)
@@ -701,7 +704,7 @@ actor RouterRegistry is FinishedAckRequester
       // TODO: Where should this line go !@
       _initiated_stop_the_world = true
 
-      migrate_onto_new_workers(new_workers)
+      _migrate_onto_new_workers(new_workers)
       _initialized_joining_workers.clear()
       _joining_worker_count = 0
     end
@@ -716,10 +719,10 @@ actor RouterRegistry is FinishedAckRequester
     """
     if not ArrayHelpers[String].contains[String](new_workers, _worker_name)
     then
-      migrate_onto_new_workers(new_workers)
+      _migrate_onto_new_workers(new_workers)
     end
 
-  fun ref migrate_onto_new_workers(new_workers: Array[String] val) =>
+  fun ref _migrate_onto_new_workers(new_workers: Array[String] val) =>
     """
     Called when a new worker joins the cluster and we are ready to start
     the partition migration process. We first trigger a pause to allow
@@ -745,6 +748,7 @@ actor RouterRegistry is FinishedAckRequester
   fun ref _try_resume_the_world() =>
     @printf[I32]("!@ _try_resume_the_world\n".cstring())
     if _initiated_stop_the_world then
+      @printf[I32]("!@ I _initiated_stop_the_world so I'm doing it\n".cstring())
       let complete_request_id = _finished_ack_waiter
         .initiate_complete_request(ResumeTheWorldAction(this))
       _request_finished_complete_acks(complete_request_id)
@@ -896,6 +900,13 @@ actor RouterRegistry is FinishedAckRequester
     | BoundaryCountStatus =>
       @printf[I32]("RouterRegistry knows about %s boundaries\n"
         .cstring(), _outgoing_boundaries.size().string().cstring())
+    //!@
+    | RequestsStatus =>
+      @printf[I32]("!@ *| Complete requests from RouterRegistry:\n".cstring())
+      for (k, v) in _requests.pairs() do
+        @printf[I32]("!@ *| -- %s:%s\n".cstring(), k.string().cstring(), v.cstring())
+      end
+      _finished_ack_waiter.report_status(code)
     end
     for source in _sources.values() do
       source.report_status(code)
@@ -904,7 +915,7 @@ actor RouterRegistry is FinishedAckRequester
   be remote_request_finished_ack(originating_worker: String,
     upstream_request_id: RequestId, upstream_requester_id: StepId)
   =>
-    @printf[I32]("!@ remote_request_finished_ack REGISTRY %s\n".cstring(), _id.string().cstring())
+    // @printf[I32]("!@ remote_request_finished_ack REGISTRY %s\n".cstring(), _id.string().cstring())
     _add_remote_finished_ack_request(originating_worker, upstream_request_id,
       upstream_requester_id)
 
@@ -912,7 +923,7 @@ actor RouterRegistry is FinishedAckRequester
     complete_request_id: FinishedAckCompleteId, request_id: RequestId,
     requester_id: StepId)
   =>
-    @printf[I32]("!@ remote_request_finished_complete_ack from %s !!-!-!!\n".cstring(), originating_worker.cstring())
+    // @printf[I32]("!@ remote_request_finished_complete_ack from %s !!-!-!!\n".cstring(), originating_worker.cstring())
     if _finished_ack_waiter.request_finished_complete_ack(complete_request_id,
       request_id, requester_id, EmptyFinishedAckRequester,
       AckFinishedCompleteAction(_auth, _worker_name, originating_worker,
@@ -998,16 +1009,21 @@ actor RouterRegistry is FinishedAckRequester
   fun ref _request_finished_complete_acks(complete_request_id:
     FinishedAckCompleteId)
   =>
+    //!@
+    _requests.clear()
     if _has_local_target() then
       // Request for sources
       for source in _sources.values() do
         let request_id = _finished_ack_waiter.add_consumer_complete_request()
+        //!@
+        _requests(request_id) = "Source"
         source.request_finished_complete_ack(complete_request_id,
           request_id, _id, this)
       end
       // Request for local steps and sinks
+        //!@ Remove _requests
       _data_router.request_finished_complete_ack(complete_request_id,
-        _id, this, _finished_ack_waiter)
+        _id, this, _finished_ack_waiter, _requests)
     else
       _finished_ack_waiter.try_finished_complete_request_early()
     end
@@ -1025,6 +1041,8 @@ actor RouterRegistry is FinishedAckRequester
 
   be add_connection_request_ids_for_complete(r_ids: Array[RequestId] val) =>
     for r_id in r_ids.values() do
+      //!@
+      _requests(r_id) = "Remote RouterRegistry"
       _finished_ack_waiter.add_consumer_complete_request(r_id)
     end
 
@@ -1039,6 +1057,7 @@ actor RouterRegistry is FinishedAckRequester
     _finished_ack_waiter.unmark_consumer_request(request_id)
 
   be receive_finished_complete_ack(request_id: RequestId) =>
+    // @printf[I32]("!@ RouterRegistry rcvd request id: %s\n".cstring(), request_id.string().cstring())
     _finished_ack_waiter.unmark_consumer_complete_request(request_id)
 
   fun _stop_all_local() =>
@@ -1284,14 +1303,22 @@ actor RouterRegistry is FinishedAckRequester
   // Step moved off this worker or new step added to another worker
   /////
   fun ref move_stateful_step_to_proxy[K: (Hashable val & Equatable[K] val)](
-    id: U128, proxy_address: ProxyAddress, key: K, state_name: String)
+    id: U128, step: Step, proxy_address: ProxyAddress, key: K,
+    state_name: String)
   =>
     """
     Called when a stateful step has been migrated off this worker to another
     worker
     """
+    _remove_all_routes_to_step(step)
     _add_state_proxy_to_partition_router[K](proxy_address, key, state_name)
     _move_step_to_proxy(id, proxy_address)
+
+  fun ref _remove_all_routes_to_step(step: Step) =>
+    for source in _sources.values() do
+      source.remove_route_to_consumer(step)
+    end
+    _data_router.remove_routes_to_consumer(step)
 
   fun ref _move_step_to_proxy(id: U128, proxy_address: ProxyAddress) =>
     """
