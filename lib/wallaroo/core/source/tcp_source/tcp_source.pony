@@ -294,12 +294,8 @@ actor TCPSource is (Producer & FinishedAckResponder & StatusReporter)
   fun ref current_sequence_id(): SeqId =>
     _seq_id
 
-  //!@
   be report_status(code: ReportStatusCode) =>
     match code
-    | FinishedAcksStatus =>
-      @printf[I32]("!@ Source finished_ack_status\n".cstring())
-      _finished_ack_waiter.report_status(code)
     | BoundaryCountStatus =>
       var b_count: USize = 0
       for r in _routes.values() do
@@ -307,11 +303,8 @@ actor TCPSource is (Producer & FinishedAckResponder & StatusReporter)
         | let br: BoundaryRoute => b_count = b_count + 1
         end
       end
-      @printf[I32]("!@ Source %s has %s boundaries.\n".cstring(), _source_id.string().cstring(), b_count.string().cstring())
-    //!@
-    | RequestsStatus =>
-      @printf[I32]("!@ |* Source requests status\n".cstring())
-      _finished_ack_waiter.report_status(code)
+      @printf[I32]("TCPSource %s has %s boundaries.\n".cstring(),
+        _source_id.string().cstring(), b_count.string().cstring())
     end
     for route in _routes.values() do
       route.report_status(code)

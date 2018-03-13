@@ -892,21 +892,11 @@ actor RouterRegistry is FinishedAckRequester
       end
     end
 
-  //!@
   be report_status(code: ReportStatusCode) =>
     match code
-    | FinishedAcksStatus =>
-      @printf[I32]("!@ RouterRegistry finished_ack_status\n".cstring())
     | BoundaryCountStatus =>
       @printf[I32]("RouterRegistry knows about %s boundaries\n"
         .cstring(), _outgoing_boundaries.size().string().cstring())
-    //!@
-    | RequestsStatus =>
-      @printf[I32]("!@ *| Complete requests from RouterRegistry:\n".cstring())
-      for (k, v) in _requests.pairs() do
-        @printf[I32]("!@ *| -- %s:%s\n".cstring(), k.string().cstring(), v.cstring())
-      end
-      _finished_ack_waiter.report_status(code)
     end
     for source in _sources.values() do
       source.report_status(code)

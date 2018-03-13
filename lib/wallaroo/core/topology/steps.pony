@@ -465,12 +465,8 @@ actor Step is (Producer & Consumer)
     // end
     _upstreams.unset(producer)
 
-  //!@
   be report_status(code: ReportStatusCode) =>
     match code
-    | FinishedAcksStatus =>
-      _finished_ack_waiter.report_status(code)
-    //!@
     | BoundaryCountStatus =>
       var b_count: USize = 0
       for r in _routes.values() do
@@ -478,7 +474,7 @@ actor Step is (Producer & Consumer)
         | let br: BoundaryRoute => b_count = b_count + 1
         end
       end
-      @printf[I32]("!@ Step %s has %s boundaries.\n".cstring(), _id.string().cstring(), b_count.string().cstring())
+      @printf[I32]("Step %s has %s boundaries.\n".cstring(), _id.string().cstring(), b_count.string().cstring())
     end
     for r in _routes.values() do
       r.report_status(code)

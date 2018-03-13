@@ -232,11 +232,17 @@ actor KafkaSource[In: Any val] is (Producer & FinishedAckResponder &
   fun ref current_sequence_id(): SeqId =>
     _seq_id
 
-  //!@
   be report_status(code: ReportStatusCode) =>
     match code
-    | FinishedAcksStatus =>
-      _finished_ack_waiter.report_status(code)
+    | BoundaryCountStatus =>
+      var b_count: USize = 0
+      for r in _routes.values() do
+        match r
+        | let br: BoundaryRoute => b_count = b_count + 1
+        end
+      end
+      @printf[I32]("KafkaSource %s has %s boundaries.\n".cstring(),
+        _source_id.string().cstring(), b_count.string().cstring())
     end
     for route in _routes.values() do
       route.report_status(code)

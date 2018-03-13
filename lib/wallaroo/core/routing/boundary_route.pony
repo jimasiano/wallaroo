@@ -113,7 +113,6 @@ class BoundaryRoute is Route
   fun ref request_ack() =>
     _consumer.request_ack()
 
-  //!@
   fun ref report_status(code: ReportStatusCode) =>
     _consumer.report_status(code)
 
