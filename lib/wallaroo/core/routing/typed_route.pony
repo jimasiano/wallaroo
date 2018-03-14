@@ -144,7 +144,6 @@ class TypedRoute[In: Any val] is Route
   fun ref request_in_flight_ack(request_id: RequestId, requester_id: StepId,
     requester: InFlightAckRequester)
   =>
-    // @printf[I32]("!@ request_in_flight_ack TYPED ROUTE\n".cstring())
     _consumer.request_in_flight_ack(request_id, requester_id, requester)
 
   fun ref request_in_flight_resume_ack(
@@ -152,7 +151,6 @@ class TypedRoute[In: Any val] is Route
     request_id: RequestId, requester_id: StepId,
     requester: InFlightAckRequester)
   =>
-    // @printf[I32]("!@ request_in_flight_resume_ack TYPED ROUTE\n".cstring())
     _consumer.request_in_flight_resume_ack(in_flight_resume_ack_id, request_id,
       requester_id, requester)
 

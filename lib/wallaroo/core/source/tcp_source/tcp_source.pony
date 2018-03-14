@@ -313,15 +313,11 @@ actor TCPSource is (Producer & InFlightAckResponder & StatusReporter)
   be request_in_flight_ack(upstream_request_id: RequestId, requester_id: StepId,
     upstream_requester: InFlightAckRequester)
   =>
-    @printf[I32]("!@ Source stopping world (%s)\n".cstring(),
-      _source_id.string().cstring())
-
     if not _in_flight_ack_waiter.already_added_request(requester_id) then
       _in_flight_ack_waiter.add_new_request(requester_id, upstream_request_id,
         upstream_requester)
       if _routes.size() > 0 then
         for route in _routes.values() do
-          // @printf[I32]("!@ ---*****---- Add consumer request at Source\n".cstring())
           let request_id = _in_flight_ack_waiter.add_consumer_request(
             requester_id)
           route.request_in_flight_ack(request_id, _source_id, this)
@@ -337,13 +333,11 @@ actor TCPSource is (Producer & InFlightAckResponder & StatusReporter)
     request_id: RequestId, requester_id: StepId,
     requester: InFlightAckRequester)
   =>
-    // @printf[I32]("!@ request_in_flight_resume_ack TCPSource\n".cstring())
     if _in_flight_ack_waiter.request_in_flight_resume_ack(in_flight_resume_ack_id,
       request_id, requester_id, requester)
     then
       if _routes.size() > 0 then
         for route in _routes.values() do
-          // @printf[I32]("!@ ---*****---- Complete consumer request at Source\n".cstring())
           let new_request_id =
             _in_flight_ack_waiter.add_consumer_resume_request()
           route.request_in_flight_resume_ack(in_flight_resume_ack_id,
@@ -358,7 +352,6 @@ actor TCPSource is (Producer & InFlightAckResponder & StatusReporter)
     _in_flight_ack_waiter.try_finish_in_flight_request_early(requester_id)
 
   be receive_in_flight_ack(request_id: RequestId) =>
-    // @printf[I32]("!@ receive_in_flight_ack RECEIVE TCPSource %s\n".cstring(), _source_id.string().cstring())
     _in_flight_ack_waiter.unmark_consumer_request(request_id)
 
   be receive_in_flight_resume_ack(request_id: RequestId) =>

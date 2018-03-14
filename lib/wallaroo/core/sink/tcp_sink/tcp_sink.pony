@@ -305,14 +305,12 @@ actor TCPSink is Consumer
   be request_in_flight_ack(request_id: RequestId, requester_id: StepId,
     requester: InFlightAckRequester)
   =>
-    // @printf[I32]("!@ request_in_flight_ack TCPSink, upstream_request_id: %s, requester_id: %s\n".cstring(), request_id.string().cstring(), requester_id.string().cstring())
     requester.receive_in_flight_ack(request_id)
 
   be request_in_flight_resume_ack(in_flight_resume_ack_id: InFlightResumeAckId,
     request_id: RequestId, requester_id: StepId,
     requester: InFlightAckRequester)
   =>
-    // @printf[I32]("!@ request_in_flight_resume_ack TCPSink\n".cstring())
     requester.receive_in_flight_resume_ack(request_id)
 
   be try_finish_in_flight_request_early(requester_id: StepId) =>

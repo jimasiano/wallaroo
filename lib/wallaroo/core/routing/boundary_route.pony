@@ -119,7 +119,6 @@ class BoundaryRoute is Route
   fun ref request_in_flight_ack(request_id: RequestId, requester_id: StepId,
     producer: InFlightAckRequester)
   =>
-    // @printf[I32]("!@ request_in_flight_ack BOUNDARY ROUTE\n".cstring())
     _consumer.request_in_flight_ack(request_id, requester_id, producer)
 
   fun ref request_in_flight_resume_ack(
@@ -127,7 +126,6 @@ class BoundaryRoute is Route
     request_id: RequestId, requester_id: StepId,
     requester: InFlightAckRequester)
   =>
-    // @printf[I32]("!@ request_in_flight_resume_ack BOUNDARY ROUTE\n".cstring())
     _consumer.request_in_flight_resume_ack(in_flight_resume_ack_id, request_id,
       requester_id, requester)
 

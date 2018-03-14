@@ -867,7 +867,6 @@ class val DataRouter is Equatable[DataRouter]
     """
     Returns false if there were no data routes to request on.
     """
-    // @printf[I32]("!@ request_in_flight_ack DataRouter: %s\n".cstring(), requester_id.string().cstring())
     ifdef "trace" then
       @printf[I32]("Finished ack requested at DataRouter\n".cstring())
     end

@@ -146,7 +146,6 @@ actor DataReceiver is Producer
 
   be request_in_flight_ack(upstream_request_id: RequestId, requester_id: StepId)
   =>
-    // @printf[I32]("!@ request_in_flight_ack DATA RECEIVER upstream_request_id: %s, requester_id: %s\n".cstring(), upstream_request_id.string().cstring(), requester_id.string().cstring())
     if not _in_flight_ack_waiter.already_added_request(requester_id) then
       _in_flight_ack_waiter.add_new_request(requester_id, upstream_request_id,
         EmptyInFlightAckRequester, _WriteInFlightAck(this,
@@ -163,7 +162,6 @@ actor DataReceiver is Producer
   be request_in_flight_resume_ack(in_flight_resume_ack_id: InFlightResumeAckId,
     upstream_request_id: RequestId, requester_id: StepId)
   =>
-    // @printf[I32]("!@ request_in_flight_resume_ack DATA RECEIVER\n".cstring())
     if _in_flight_ack_waiter.request_in_flight_resume_ack(in_flight_resume_ack_id,
       upstream_request_id, requester_id, EmptyInFlightAckRequester,
       _WriteFinishedCompleteAck(this, upstream_request_id))
@@ -176,7 +174,6 @@ actor DataReceiver is Producer
     _in_flight_ack_waiter.try_finish_in_flight_request_early(requester_id)
 
   be receive_in_flight_ack(request_id: RequestId) =>
-    // @printf[I32]("!@ receive_in_flight_ack DataReceiver\n".cstring())
     _in_flight_ack_waiter.unmark_consumer_request(request_id)
 
   be receive_in_flight_resume_ack(request_id: RequestId) =>
@@ -186,7 +183,6 @@ actor DataReceiver is Producer
     _write_in_flight_ack(upstream_request_id)
 
   fun ref _write_in_flight_ack(upstream_request_id: RequestId) =>
-    // @printf[I32]("!@ !! DataReceiver: write_in_flight_ack\n".cstring())
     try
       let ack_msg = ChannelMsgEncoder.in_flight_ack(_worker_name,
         upstream_request_id, _auth)?
@@ -199,8 +195,6 @@ actor DataReceiver is Producer
     _write_in_flight_resume_ack(upstream_request_id)
 
   fun ref _write_in_flight_resume_ack(upstream_request_id: RequestId) =>
-    // @printf[I32]("!@ !! DataReceiver: write_in_flight_resume_ack\n".cstring())
-    @printf[I32]("!@ DataReceiver: Acking request id %s\n".cstring(), upstream_request_id.string().cstring())
     try
       let ack_msg = ChannelMsgEncoder.in_flight_resume_ack(_worker_name,
         upstream_request_id, _auth)?
@@ -396,7 +390,6 @@ class _WriteInFlightAck is CustomAction
     _request_id = request_id
 
   fun ref apply() =>
-    // @printf[I32]("!@ _WriteInFlightAck DataReceiver\n".cstring())
     _data_receiver.write_in_flight_ack(_request_id)
 
 class _WriteFinishedCompleteAck is CustomAction
@@ -408,5 +401,4 @@ class _WriteFinishedCompleteAck is CustomAction
     _request_id = request_id
 
   fun ref apply() =>
-    @printf[I32]("!@ _WriteFinishedCompleteAck DataReceiver\n".cstring())
     _data_receiver.write_in_flight_resume_ack(_request_id)
