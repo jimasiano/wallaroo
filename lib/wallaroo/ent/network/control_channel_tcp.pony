@@ -313,7 +313,6 @@ class ControlChannelConnectNotifier is TCPConnectionNotify
       | let m: InitiateJoinMigrationMsg =>
         _router_registry.remote_migration_request(m.new_workers)
       | let m: LeavingWorkerDoneMigratingMsg =>
-        @printf[I32]("!@ -- RECVD LeavingWorkerDoneMigratingMsg\n".cstring())
         _router_registry.disconnect_from_leaving_worker(m.worker_name)
       | let m: AckMigrationBatchCompleteMsg =>
         ifdef "trace" then
@@ -359,31 +358,25 @@ class ControlChannelConnectNotifier is TCPConnectionNotify
         _router_registry.remote_request_in_flight_ack(m.sender,
           m.request_id, m.requester_id)
       | let m: RequestInFlightResumeAckMsg =>
-        @printf[I32]("!@ RequestInFlightResumeAckMsg COMPLETE from %s\n".cstring(), m.sender.cstring())
         _router_registry.remote_request_in_flight_resume_ack(m.sender,
           m.in_flight_resume_ack_id, m.request_id, m.requester_id)
       | let m: InFlightAckMsg =>
-        @printf[I32]("!@ FINISHEDACKMSG\n".cstring())
         ifdef "trace" then
           @printf[I32]("Received InFlightAckMsg from %s\n".cstring(),
             m.sender.cstring())
         end
         _router_registry.receive_in_flight_ack(m.request_id)
       | let m: FinishedCompleteAckMsg =>
-        @printf[I32]("!@ FINISHEDCOMPLETEACKMSG\n".cstring())
         ifdef "trace" then
           @printf[I32]("Received FinishedCompleteAckMsg from %s\n".cstring(),
             m.sender.cstring())
         end
-        @printf[I32]("!@ Received FinishedCompleteAckMsg at control channel from %s\n".cstring(), m.sender.cstring())
         _router_registry.receive_in_flight_resume_ack(m.request_id)
       | let m: ResumeTheWorldMsg =>
         ifdef "trace" then
           @printf[I32]("Received ResumeTheWorldMsg from %s\n".cstring(),
             m.sender.cstring())
         end
-        @printf[I32]("!@ Received ResumeTheWorldMsg from %s\n".cstring(),
-            m.sender.cstring())
         _router_registry.resume_the_world(m.sender)
       | let m: RotateLogFilesMsg =>
         @printf[I32]("Control Ch: Received Rotate Log Files request\n"

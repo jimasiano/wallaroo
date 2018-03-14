@@ -173,7 +173,7 @@ class ExternalChannelConnectNotifier is TCPConnectionNotify
           _local_topology_initializer.source_ids_query(conn)
         | let m: ExternalReportStatusMsg =>
           ifdef "trace" then
-            @printf[I32](("!@ Received ExternalReportStatusMsg on " +
+            @printf[I32](("Received ExternalReportStatusMsg on " +
               " External Channel\n").cstring())
           end
           try

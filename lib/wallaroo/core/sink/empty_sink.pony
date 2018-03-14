@@ -69,14 +69,12 @@ actor EmptySink is Consumer
   be request_in_flight_ack(request_id: RequestId, requester_id: StepId,
     producer: InFlightAckRequester)
   =>
-    // @printf[I32]("!@ request_in_flight_ack EmptySink\n".cstring())
     producer.receive_in_flight_ack(request_id)
 
   be request_in_flight_resume_ack(in_flight_resume_ack_id: InFlightResumeAckId,
     request_id: RequestId, requester_id: StepId,
     requester: InFlightAckRequester)
   =>
-    // @printf[I32]("!@ request_in_flight_resume_ack EmptySink\n".cstring())
     None
 
   be try_finish_in_flight_request_early(requester_id: StepId) =>

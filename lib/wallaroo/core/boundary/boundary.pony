@@ -457,10 +457,6 @@ actor OutgoingBoundary is Consumer
   be request_in_flight_ack(upstream_request_id: RequestId,
     requester_id: StepId, upstream_requester: InFlightAckRequester)
   =>
-    // @printf[I32]("!@ request_in_flight_ack BOUNDARY %s, requester_id: %s, upstream_request_id: %s\n".cstring(), _step_id.string().cstring(), requester_id.string().cstring(), upstream_request_id.string().cstring())
-
-    // !@
-    // if not _in_flight_ack_waiter.pending_request() then
     if not _in_flight_ack_waiter.already_added_request(requester_id) then
       try
         _in_flight_ack_waiter.add_new_request(requester_id, upstream_request_id,
@@ -480,13 +476,10 @@ actor OutgoingBoundary is Consumer
     request_id: RequestId, requester_id: StepId,
     requester: InFlightAckRequester)
   =>
-    // @printf[I32]("!@ Boundary rcvd request_id: %s, boundary_id: %s\n".cstring(), request_id.string().cstring(), _step_id.string().cstring())
-    // @printf[I32]("!@ request_in_flight_resume_ack BOUNDARY\n".cstring())
     if _in_flight_ack_waiter.request_in_flight_resume_ack(in_flight_resume_ack_id,
       request_id, requester_id, requester)
     then
       try
-        @printf[I32]("!@ Boundary sending request_complete\n".cstring())
         let new_request_id =
           _in_flight_ack_waiter.add_consumer_resume_request()
         _writev(ChannelMsgEncoder.request_in_flight_resume_ack(_worker_name,
@@ -500,7 +493,6 @@ actor OutgoingBoundary is Consumer
     _in_flight_ack_waiter.try_finish_in_flight_request_early(requester_id)
 
   be receive_in_flight_ack(request_id: RequestId) =>
-    // @printf[I32]("!@ receive_in_flight_ack BOUNDARY %s\n".cstring(), _step_id.string().cstring())
     _in_flight_ack_waiter.unmark_consumer_request(request_id)
 
   be receive_in_flight_resume_ack(request_id: RequestId) =>
@@ -1067,7 +1059,6 @@ class BoundaryNotify is WallarooOutgoingNetworkActorNotify
           @printf[I32]("Received FinishedCompleteAckMsg from %s\n".cstring(),
             fa.sender.cstring())
         end
-        @printf[I32]("!@ Received FinishedCompleteAckMsg at Boundary from %s\n".cstring(), fa.sender.cstring())
         _outgoing_boundary.receive_in_flight_resume_ack(fa.request_id)
       else
         @printf[I32](("Unknown Wallaroo data message type received at " +

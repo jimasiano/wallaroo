@@ -272,7 +272,6 @@ actor KafkaSource[In: Any val] is (Producer & InFlightAckResponder &
       request_id, requester_id, requester)
     then
       for route in _routes.values() do
-        // @printf[I32]("!@ ---*****---- Complete consumer request at Source\n".cstring())
         let new_request_id =
           _in_flight_ack_waiter.add_consumer_resume_request()
         route.request_in_flight_resume_ack(in_flight_resume_ack_id,

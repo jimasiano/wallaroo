@@ -34,11 +34,10 @@ actor InitialInFlightAckRequester is InFlightAckRequester
 
   be receive_in_flight_ack(request_id: RequestId) =>
     ifdef debug then
-      // !@TODO: Remove "This step id"
       @printf[I32](("Received in flight ack at InitialInFlightAckRequester. " +
         "This indicates the originator of a chain of in flight ack requests " +
-        "has received the final ack. Request id received: %s. This step id: %s\n").cstring(),
-        request_id.string().cstring(), _step_id.string().cstring())
+        "has received the final ack. Request id received: %s.\n").cstring(),
+        request_id.string().cstring())
     end
     None
 
@@ -207,24 +206,15 @@ class InFlightAckWaiter
   fun already_added_request(requester_id: StepId): Bool =>
     _upstream_request_ids.contains(requester_id)
 
-  // !@
-  fun pending_request(): Bool =>
-    _upstream_request_ids.size() > 0
-
   fun ref unmark_consumer_request(request_id: RequestId) =>
     try
-      // @printf[I32]("!@ unmark_consumer_request 1\n".cstring())
       let requester_id = _downstream_request_ids(request_id)?
-      // @printf[I32]("!@ received ack for request_id %s (associated with requester %s). (reported from %s)\n".cstring(), request_id.string().cstring(), requester_id.string().cstring(), _step_id.string().cstring())
-      // @printf[I32]("!@ unmark_consumer_request 2\n".cstring())
       let id_set = _pending_acks(requester_id)?
       ifdef debug then
         Invariant(id_set.contains(request_id))
       end
       id_set.unset(request_id)
-      // @printf[I32]("!@ unmark_consumer_request 3\n".cstring())
       _downstream_request_ids.remove(request_id)?
-      // @printf[I32]("!@ unmark_consumer_request COMPLETE\n".cstring())
       _check_send_run(requester_id)
     else
       Fail()
@@ -248,11 +238,6 @@ class InFlightAckWaiter
 
     let initial_requester_id = in_flight_resume_ack_id.initial_requester_id
     let seq_id = in_flight_resume_ack_id.seq_id
-
-    //!@
-    // if _upstream_resume_requesters.contains(requester_id) or _upstream_in_flight_resume_ack_ids.contains(requester_id) then
-    //   @printf[I32]("!@ Already saw requester_id: %s at node %s\n".cstring(), requester_id.string().cstring(), _step_id.string().cstring())
-    // end
 
     ifdef debug then
       // Since a node should only send a request to its downstreams once during
@@ -278,7 +263,6 @@ class InFlightAckWaiter
     if _in_flight_resume_ack_ids.contains(initial_requester_id) then
       try
         let current = _in_flight_resume_ack_ids(initial_requester_id)?
-        // @printf[I32]("!@ request_in_flight_resume_ack Current: %s, seq_id: %s reported from %s. Pending: %s, upstream_resume_requesters: %s, init: %s\n".cstring(), current.string().cstring(), seq_id.string().cstring(), _step_id.string().cstring(), _pending_resume_acks.size().string().cstring(), _upstream_resume_requesters.size().string().cstring(), initial_requester_id.string().cstring())
         if current < seq_id then
           ifdef debug then
             // We shouldn't be processing a new resume ack phase until
@@ -310,7 +294,6 @@ class InFlightAckWaiter
         false
       end
     else
-        // @printf[I32]("!@ request_in_flight_resume_ack Current: %s, seq_id: %s reported from %s. Pending: %s, upstream_resume_requesters: %s, init: %s\n".cstring(), USize(0).string().cstring(), seq_id.string().cstring(), _step_id.string().cstring(), _pending_resume_acks.size().string().cstring(), _upstream_resume_requesters.size().string().cstring(), initial_requester_id.string().cstring())
       ifdef debug then
         // We shouldn't be processing a new resume ack phase until
         // the last one is finished.
@@ -335,7 +318,6 @@ class InFlightAckWaiter
 
   fun ref unmark_consumer_resume_request(request_id: RequestId) =>
     if _pending_resume_acks.size() > 0 then
-      // @printf[I32]("!@ unmark_consumer_resume_request() with %s pending at %s\n".cstring(), _pending_resume_acks.size().string().cstring(), _step_id.string().cstring())
       _pending_resume_acks.unset(request_id)
       if _pending_resume_acks.size() == 0 then
         _resume_request_is_done()
@@ -343,13 +325,11 @@ class InFlightAckWaiter
     end
 
   fun ref try_finish_resume_request_early() =>
-    // @printf[I32]("!@ try_finished_resume_request_early\n".cstring())
     if _pending_resume_acks.size() == 0 then
       _resume_request_is_done()
     end
 
   fun ref _resume_request_is_done() =>
-    // @printf[I32]("!@ ------ !!! _resume_request_is_done() at %s,  upstream_resume_requesters: %s!!! \n".cstring(), _step_id.string().cstring(), _upstream_resume_requesters.size().string().cstring())
     for (requester_id, requester) in _upstream_resume_requesters.pairs() do
       try
         let upstream_request_id =
@@ -384,10 +364,6 @@ class InFlightAckWaiter
 
   fun ref _check_send_run(requester_id: StepId) =>
     try
-      // @printf[I32]("!@ _pending_acks size: %s for requester_id %s (reported from %s). Listing pending acks:\n".cstring(), _pending_acks(requester_id)?.size().string().cstring(), requester_id.string().cstring(), _step_id.string().cstring())
-      // for pending_ack in _pending_acks(requester_id)?.values() do
-      //   @printf[I32]("!@ -- %s\n".cstring(), pending_ack.string().cstring())
-      // end
       if _pending_acks(requester_id)?.size() == 0 then
         let upstream_request_id = _upstream_request_ids(requester_id)?
         _upstream_requesters(requester_id)?
