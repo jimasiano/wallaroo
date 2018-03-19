@@ -1117,6 +1117,7 @@ actor RouterRegistry is InFlightAckRequester
     Called when a new (joining) worker needs to ack to worker sender_name that
     it's ready to start receiving messages after migration
     """
+    _distribute_omni_router()
     _connections.ack_migration_batch_complete(sender_name)
 
   fun ref _migrate_partition_steps(state_name: String,
