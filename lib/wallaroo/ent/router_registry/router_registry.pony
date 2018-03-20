@@ -1275,8 +1275,9 @@ actor RouterRegistry is InFlightAckRequester
       try
         let boundary = _outgoing_boundaries(w)?
         rws_trn.push((w, boundary))
-      else
-        Fail()
+      //!@
+      // else
+      //   Fail()
       end
     end
     let rws = consume val rws_trn
