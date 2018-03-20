@@ -247,6 +247,11 @@ def autoscale_sequence(command, ops=[1], cycles=1, initial=None):
         if hasattr(err, 'as_error'):
             print("Autoscale Sequence test had the following the error "
                   "message:\n{}".format(err.as_error))
+        if hasattr(err, 'runners'):
+           if not isinstance(err, PipelineTestError):
+               outputs = runners_output_format(err.runners)
+               print("Autoscale Sequence test runners had the following "
+                     "output:\n===\n{}".format(outputs))
         raise err
 
 
@@ -548,8 +553,9 @@ def _autoscale_sequence(command, ops=[1], cycles=1, initial=None):
                                         "\n===\n{}"
                                         .format(alive_names, runner_join_timeout,
                                                 outputs))
-
     except Exception as err:
         if not hasattr(err, 'as_steps'):
             err.as_steps = steps
+        if not hasattr(err, 'runners'):
+            err.runners = runners
         raise err
