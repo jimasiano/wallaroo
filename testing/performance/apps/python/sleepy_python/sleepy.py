@@ -70,7 +70,7 @@ def process_nonce(nonce):
 def busy_sleep(data, state):
     delay(delay_ms)
     state.sheep += 1
-    return (None, False)
+    return (None, True)
 
 
 class DreamData(object):
