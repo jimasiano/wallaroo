@@ -30,92 +30,92 @@ CMD_PYTHON = 'machida --application-module alphabet'
 CYCLES=4
 
 
-# def test_autoscale_pony_grow_by_1():
-#     autoscale_sequence(CMD_PONY, ops=[1], cycles=CYCLES)
+def test_autoscale_pony_grow_by_1():
+    autoscale_sequence(CMD_PONY, ops=[1], cycles=CYCLES)
 
 
-# def test_autoscale_pony_grow_by_1_grow_by_many():
-#     autoscale_sequence(CMD_PONY, ops=[1, 4], cycles=CYCLES)
+def test_autoscale_pony_grow_by_1_grow_by_many():
+    autoscale_sequence(CMD_PONY, ops=[1, 4], cycles=CYCLES)
 
 
-# def test_autoscale_pony_grow_by_1_shrink_by_1():
-#     autoscale_sequence(CMD_PONY, ops=[1,-1], cycles=CYCLES)
+def test_autoscale_pony_grow_by_1_shrink_by_1():
+    autoscale_sequence(CMD_PONY, ops=[1,-1], cycles=CYCLES)
 
 
-# def test_autoscale_pony_grow_by_1_shrink_by_many():
-#     autoscale_sequence(CMD_PONY, ops=[1,-4], cycles=CYCLES)
+def test_autoscale_pony_grow_by_1_shrink_by_many():
+    autoscale_sequence(CMD_PONY, ops=[1,-4], cycles=CYCLES)
 
 
-# def test_autoscale_pony_grow_by_many_grow_by_1():
-#     autoscale_sequence(CMD_PONY, ops=[4,1], cycles=CYCLES)
+def test_autoscale_pony_grow_by_many_grow_by_1():
+    autoscale_sequence(CMD_PONY, ops=[4,1], cycles=CYCLES)
 
 
-# def test_autoscale_pony_grow_by_many():
-#     autoscale_sequence(CMD_PONY, ops=[4], cycles=CYCLES)
+def test_autoscale_pony_grow_by_many():
+    autoscale_sequence(CMD_PONY, ops=[4], cycles=CYCLES)
 
 
-# def test_autoscale_pony_grow_by_many_shrink_by_1():
-#     autoscale_sequence(CMD_PONY, ops=[4,-1], cycles=CYCLES)
+def test_autoscale_pony_grow_by_many_shrink_by_1():
+    autoscale_sequence(CMD_PONY, ops=[4,-1], cycles=CYCLES)
 
 
-# def test_autoscale_pony_grow_by_many_shrink_by_many():
-#     autoscale_sequence(CMD_PONY, ops=[4,-4], cycles=CYCLES)
+def test_autoscale_pony_grow_by_many_shrink_by_many():
+    autoscale_sequence(CMD_PONY, ops=[4,-4], cycles=CYCLES)
 
 
-# def test_autoscale_pony_shrink_by_1_grow_by_1():
-#     autoscale_sequence(CMD_PONY, ops=[-1,1], cycles=CYCLES)
+def test_autoscale_pony_shrink_by_1_grow_by_1():
+    autoscale_sequence(CMD_PONY, ops=[-1,1], cycles=CYCLES)
 
 
-# def test_autoscale_pony_shrink_by_1_grow_by_many():
-#     autoscale_sequence(CMD_PONY, ops=[-1,4], cycles=CYCLES)
+def test_autoscale_pony_shrink_by_1_grow_by_many():
+    autoscale_sequence(CMD_PONY, ops=[-1,4], cycles=CYCLES)
 
 
-# def test_autoscale_pony_shrink_by_1():
-#     autoscale_sequence(CMD_PONY, ops=[-1], cycles=CYCLES)
+def test_autoscale_pony_shrink_by_1():
+    autoscale_sequence(CMD_PONY, ops=[-1], cycles=CYCLES)
 
 
-# def test_autoscale_pony_shrink_by_1_shrink_by_many():
-#     autoscale_sequence(CMD_PONY, ops=[-1,-4], cycles=CYCLES)
+def test_autoscale_pony_shrink_by_1_shrink_by_many():
+    autoscale_sequence(CMD_PONY, ops=[-1,-4], cycles=CYCLES)
 
 
-# def test_autoscale_pony_shrink_by_many_grow_by_1():
-#     autoscale_sequence(CMD_PONY, ops=[-4,1], cycles=CYCLES)
+def test_autoscale_pony_shrink_by_many_grow_by_1():
+    autoscale_sequence(CMD_PONY, ops=[-4,1], cycles=CYCLES)
 
 
-# def test_autoscale_pony_shrink_by_many_grow_by_many():
-#     autoscale_sequence(CMD_PONY, ops=[-4,4], cycles=CYCLES)
+def test_autoscale_pony_shrink_by_many_grow_by_many():
+    autoscale_sequence(CMD_PONY, ops=[-4,4], cycles=CYCLES)
 
 
-# def test_autoscale_pony_shrink_by_many_shrink_by_1():
-#     autoscale_sequence(CMD_PONY, ops=[-4,-1], cycles=CYCLES)
+def test_autoscale_pony_shrink_by_many_shrink_by_1():
+    autoscale_sequence(CMD_PONY, ops=[-4,-1], cycles=CYCLES)
 
 
-# def test_autoscale_pony_shrink_by_many():
-#     autoscale_sequence(CMD_PONY, ops=[-4], cycles=CYCLES)
+def test_autoscale_pony_shrink_by_many():
+    autoscale_sequence(CMD_PONY, ops=[-4], cycles=CYCLES)
 
 
-# def test_autoscale_python_grow_by_1():
-#     autoscale_sequence(CMD_PYTHON, ops=[1], cycles=CYCLES)
+def test_autoscale_python_grow_by_1():
+    autoscale_sequence(CMD_PYTHON, ops=[1], cycles=CYCLES)
 
 
-# def test_autoscale_python_grow_by_1_grow_by_many():
-#     autoscale_sequence(CMD_PYTHON, ops=[1,4], cycles=CYCLES)
+def test_autoscale_python_grow_by_1_grow_by_many():
+    autoscale_sequence(CMD_PYTHON, ops=[1,4], cycles=CYCLES)
 
 
-# def test_autoscale_python_grow_by_1_shrink_by_1():
-#     autoscale_sequence(CMD_PYTHON, ops=[1,-1], cycles=CYCLES)
+def test_autoscale_python_grow_by_1_shrink_by_1():
+    autoscale_sequence(CMD_PYTHON, ops=[1,-1], cycles=CYCLES)
 
 
-# def test_autoscale_python_grow_by_1_shrink_by_many():
-#     autoscale_sequence(CMD_PYTHON, ops=[1,-4], cycles=CYCLES)
+def test_autoscale_python_grow_by_1_shrink_by_many():
+    autoscale_sequence(CMD_PYTHON, ops=[1,-4], cycles=CYCLES)
 
 
-# def test_autoscale_python_grow_by_many_grow_by_1():
-#     autoscale_sequence(CMD_PYTHON, ops=[4,1], cycles=CYCLES)
+def test_autoscale_python_grow_by_many_grow_by_1():
+    autoscale_sequence(CMD_PYTHON, ops=[4,1], cycles=CYCLES)
 
 
-# def test_autoscale_python_grow_by_many():
-#     autoscale_sequence(CMD_PYTHON, ops=[4], cycles=CYCLES)
+def test_autoscale_python_grow_by_many():
+    autoscale_sequence(CMD_PYTHON, ops=[4], cycles=CYCLES)
 
 
 def test_autoscale_python_grow_by_many_shrink_by_1():
