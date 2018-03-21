@@ -26,12 +26,13 @@ def application_setup(args):
 
     nonce_source = wallaroo.TCPSourceConfig(in_host, in_port, nonce_decoder)
     ok_sink = wallaroo.TCPSinkConfig(out_host, out_port, ok_encoder)
+    partitioner = IntPartitioner()
     ab = wallaroo.ApplicationBuilder("sleepy-python")
     ab.new_pipeline("Counting Sheep", nonce_source)
     ab.to(process_nonce)
     ab.to_state_partition(
             busy_sleep, DreamData, "dream-data",
-            partition_function, partitions
+            partitioner, partitioner.partitions
         )
     ab.to_sink(ok_sink)
     return ab.build()
@@ -40,41 +41,63 @@ def application_setup(args):
 @wallaroo.decoder(header_length=4, length_fmt=">I")
 def nonce_decoder(bytes):
     """
-    Ignore most of the data and just read a partition number off of the
+    Ignore most of the data and just read a partition key off of the
     message.
     """
-    return struct.unpack(">I", bytes)
+    value = struct.unpack_from(">I", bytes)[0]
+    return value
 
 
 @wallaroo.encoder
 def ok_encoder(_):
-    return "ok"
+    """
+    This encoder always returns a plain-text "ok" followed but a newline.
+    It's useful for checking activity interactively during development.
+    """
+    return " ok\n"
 
 
 @wallaroo.computation(name="Forward nonce partition")
 def process_nonce(partition):
+    """
+    We could probably do something more interesting but for now we pass
+    the entire value forward.
+    """
     return partition
 
 
-@wallaroo.computation(name="Count sheep")
+@wallaroo.state_computation(name="Count sheep")
 def busy_sleep(data, state):
     delay(delay_ms)
     state.sheep += 1
-    if state.sheep % 1000 == 0:
-        return data
+    return (None, False)
 
 
 class DreamData(object):
     __slots__ = ('sheep')
+
     def __init__(self):
         self.sheep = 0
 
 
-# Pick 60 because it has a lot of convenient factors
-partitions = list(xrange(0,60))
+class IntPartitioner(object):
+    """
+    This partitioner uses a simple modulus operator and expects the partition
+    key to be an integer.
+    """
 
-def partition_function(n):
-    return partitions[n % len(partitions)]
+    __slots__ = ('partitions')
+
+    def __init__(self, size = 60):
+        """
+        Construct a simple partitioner with a given number of partitions.
+        Defaults to 60 (a good number of integer factors for fair partition
+        assignment).
+        """
+        self.partitions = list(xrange(0, size))
+
+    def partition(self, n):
+        return self.partitions[n % len(self.partitions)]
 
 
 # Set by --delay_ms argument
@@ -88,10 +111,13 @@ def parse_delay(args):
     delay_ms = a.delay_ms
 
 def delay(ms):
+    """
+    This is an intentional busy sleep which blocks execution instead of allowing
+    the GIL to be released.
+    """
     if ms == 0:
-        return
-    t = time.time()
+       return
+    target_time = time.time() + (ms / 1000.0)
     c = 0
-    s = ms / 1000.0
-    while (t + s) > time.time():
+    while target_time > time.time():
         c = c + 1
