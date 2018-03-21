@@ -16,13 +16,25 @@ from random import randint
 from struct import pack
 
 
-def write_nonce(nonce):
-    partition_selector = randint(0,60000)
-    # We're writing 1024 bytes with a size header
-    nonce.write(pack(">II", 1024, partition_selector))
-    for _ in range(1020 / 4):
-        nonce.write(pack("I", randint(0,2**32)))
+# File path for our output (it will overwrite anything that's already there)
+nonce_file = "_nonces.bin"
 
-with open("_nonces.bin", "wb") as nonces:
-    for _ in range(1024): # Roughly 1M of data + 32bit frame overhead
+# Size in bytes, including the partition key but excluding the frame header
+nonce_size = 1024
+
+# Number of nonces to generate
+nonce_count = 1024
+
+
+def write_nonce(file):
+    partition_selector = randint(0,60000)
+    file.write(pack(">II", nonce_size, partition_selector))
+    pad = randint(0, 2**32)
+    for _ in range((nonce_size - 4) / 4):
+        file.write(pack(">I", pad))
+
+
+
+with open(nonce_file, "wb") as nonces:
+    for _ in range(nonce_count):
         write_nonce(nonces)
