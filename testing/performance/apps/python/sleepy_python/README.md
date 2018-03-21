@@ -38,11 +38,14 @@ Machida should have the proper PYTHON path setup to include a copy of the wallar
 
 ```bash
 machida --application-module sleepy \
+  --delay_ms 5
   --in 127.0.0.1:7010 --out 127.0.0.1:7002 \
   --metrics 127.0.0.1:5001 --control 127.0.0.1:6000 --data 127.0.0.1:6001 \
   --worker-name worker1 --external 127.0.0.1:5050 --cluster-initializer \
   --ponythreads=1 --ponynoblock
 ```
+
+Adjust the delay (in milliseconds) as needed.
 
 ### Setting up the Source
 
