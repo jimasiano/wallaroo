@@ -26,7 +26,7 @@ def application_setup(args):
 
     nonce_source = wallaroo.TCPSourceConfig(in_host, in_port, nonce_decoder)
     ok_sink = wallaroo.TCPSinkConfig(out_host, out_port, ok_encoder)
-    partitioner = IntPartitioner()
+    partitioner = TuplePartitioner(0)
     ab = wallaroo.ApplicationBuilder("sleepy-python")
     ab.new_pipeline("Counting Sheep", nonce_source)
     ab.to(process_nonce)
@@ -45,7 +45,7 @@ def nonce_decoder(bytes):
     message.
     """
     value = struct.unpack_from(">I", bytes)[0]
-    return value
+    return (value, bytes)
 
 
 @wallaroo.encoder
@@ -54,16 +54,16 @@ def ok_encoder(_):
     This encoder always returns a plain-text "ok" followed but a newline.
     It's useful for checking activity interactively during development.
     """
-    return " ok\n"
+    return "ok\n"
 
 
 @wallaroo.computation(name="Forward nonce partition")
-def process_nonce(partition):
+def process_nonce(nonce):
     """
     We could probably do something more interesting but for now we pass
     the entire value forward.
     """
-    return partition
+    return nonce
 
 
 @wallaroo.state_computation(name="Count sheep")
@@ -80,24 +80,25 @@ class DreamData(object):
         self.sheep = 0
 
 
-class IntPartitioner(object):
+class TuplePartitioner(object):
     """
     This partitioner uses a simple modulus operator and expects the partition
-    key to be an integer.
+    key to be a tuple with an integer in the provided slot.
     """
 
-    __slots__ = ('partitions')
+    __slots__ = ('slot', 'partitions')
 
-    def __init__(self, size = 60):
+    def __init__(self, slot, size = 60):
         """
         Construct a simple partitioner with a given number of partitions.
         Defaults to 60 (a good number of integer factors for fair partition
         assignment).
         """
+        self.slot = slot
         self.partitions = list(xrange(0, size))
 
-    def partition(self, n):
-        return self.partitions[n % len(self.partitions)]
+    def partition(self, tuple):
+        return self.partitions[tuple[self.slot] % len(self.partitions)]
 
 
 # Set by --delay_ms argument
